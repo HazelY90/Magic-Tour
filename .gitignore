@@ -1,69 +1,44 @@
-# Prerequisites
-*.d
+# documents
+docs/
+AGENTS.md
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+# Unreal-generated project output; keep Config, Content, Source, and Build tracked.
+/Binaries/
+/Intermediate/
+/Saved/
+/DerivedDataCache/
 
-# Precompiled Headers
-*.gch
-*.pch
+# Plugins regenerate intermediate files; binary-only plugins may need Binaries tracked.
+/Plugins/**/Intermediate/
+/Plugins/**/Saved/
+/Plugins/**/DerivedDataCache/
 
-# Linker files
-*.ilk
+# Generated IDE projects; Unreal module rules remain tracked (*.Build.cs, *.Target.cs).
+*.sln
+*.slnx
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.VC.opendb
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.xcworkspace/
+*.xcodeproj/
+.vs/
 
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
-
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# Build directories
-build/
-Build/
-build-*/
-
-# CMake generated files
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-install_manifest.txt
+# Local editor settings and generated code-completion data.
+.vscode/
+.idea/
+.cache/
 compile_commands.json
 
-# Temporary files
-*.tmp
-*.log
-*.bak
+# macOS metadata and local temporary files.
+.DS_Store
+._*
+.Spotlight-V100/
+.Trashes/
 *.swp
-
-# vcpkg
-vcpkg_installed/
-
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
-.cache/
+*.swo
+*~
