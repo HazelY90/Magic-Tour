@@ -8,7 +8,7 @@ The technical focus is C++ gameplay programming: movement transitions, reusable 
 
 ## Status
 
-**Initial setup — not yet playable.** Repository structure and development planning are in place. Unreal Engine installation is in progress; the UE project and gameplay systems have not been created yet.
+**Initial setup — not yet playable.** Repository structure and development planning are in place, and Unreal Engine 5.8.2 is installed. The UE project and gameplay systems have not been created yet.
 
 There is no gameplay demo or downloadable build yet. A 45–60 second gameplay recording is planned once the core experience is complete.
 
@@ -57,12 +57,22 @@ The initial target is **macOS on Apple Silicon**.
 
 | Item | Current status |
 | --- | --- |
-| Unreal Engine | Installation in progress; exact version to be confirmed. |
+| Unreal Engine | 5.8.2 installed; selected for project development. |
 | C++ toolchain | Xcode installed; compatibility with the selected UE version is not yet verified. |
 | Code editor | VS Code available. |
 | Build and runtime validation | Pending project creation. |
 
-This repository cannot be built or launched yet: `MagicTour.uproject` and the C++ module files are not present. Tested engine/toolchain versions and reproducible build instructions will be added after the first successful build.
+This repository cannot be built or launched yet: `MagicTour.uproject` and the C++ module files are not present.
+
+### Intended Startup Workflow
+
+After the Third Person C++ project has been created and successfully built:
+
+1. Open the repository's `MagicTour.uproject` with Unreal Engine 5.8.2.
+2. Allow the editor to finish loading assets and compiling shaders.
+3. Open the project's gameplay map and select **Play** to run in the editor.
+
+These steps have not been validated yet. The exact map, compatible Xcode version, and C++ build instructions will be recorded after the first successful build and editor run.
 
 ## Scope and Limitations
 
