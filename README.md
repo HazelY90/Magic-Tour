@@ -1,87 +1,130 @@
 # Magic Tour
 
-**Flight & Combat Prototype · Unreal Engine 5 · C++ · Blueprint**
+**Third-Person Flight and Combat Prototype · Unreal Engine 5 · C++ · Blueprint**
 
-Magic Tour is a personal gameplay project exploring arcade-style flight, forest traversal, and projectile-based magic combat. The planned experience follows one character from open-air flight to forest paths and a small combat encounter among ancient ruins.
+Magic Tour is a small gameplay prototype built around a short sequence of free flight, low-altitude forest traversal, landing, and projectile-based magic combat. The project is intended as a focused portfolio piece that demonstrates Unreal Engine gameplay programming in C++ with Blueprint-based presentation and tuning.
 
-The technical focus is C++ gameplay programming: movement transitions, reusable components, collision and damage, simple enemy AI, and objective state management.
+## Current Status
 
-## Status
+The Unreal project is created and the initial third-person foundation is playable in the editor.
 
-**Initial setup — not yet playable.** Repository structure and development planning are in place, and Unreal Engine 5.8.2 is installed. The UE project and gameplay systems have not been created yet.
+Completed work:
 
-There is no gameplay demo or downloadable build yet. A 45–60 second gameplay recording is planned once the core experience is complete.
+- Created the initial forest map with a meadow, traversal path, and ruins area.
+- Added a playable third-person character with basic ground movement and camera controls.
+
+The current playable scope is limited to third-person walking, turning, looking, and jumping. Flight, landing validation, checkpoints, combat, enemies, HUD, victory, and restart systems are still planned.
+
+There is no packaged build or gameplay recording yet.
+
+## Controls
+
+| Action | Keyboard and mouse | Controller |
+| --- | --- | --- |
+| Move | `W`, `A`, `S`, `D` or arrow keys | Left stick |
+| Look | Mouse | Right stick |
+| Jump | `Space` | Bottom face button |
+
+Flight, ascend, descend, boost, landing, and spell controls will be added with their gameplay systems.
 
 ## Planned Gameplay
 
 **Free flight → Forest traversal → Route objectives → Ruins encounter → Victory**
 
-- Fly above the forest, descend between obstacles, and control speed with boost.
-- Land on suitable forest ground, walk along roads, and take off again without losing progress.
-- Complete 3–5 ordered checkpoints by flying or walking through them. These are route objectives, not save or respawn points.
-- Unlock the final encounter after completing the route; ordinary forest landings remain available throughout traversal.
-- Use one projectile spell to defeat 2–3 enemies, with basic health, damage, victory, failure, and restart states.
+- Fly freely above the forest and descend into the low-altitude route.
+- Navigate a curved corridor between trees by flying or walking.
+- Land only on valid meadow and path surfaces, then take off again without losing progress.
+- Complete 3–5 ordered route checkpoints.
+- Enter the ruins encounter after satisfying the route objectives.
+- Use one projectile spell to defeat 2–3 enemies.
+- Support health, damage, victory, failure, and restart states.
 
-Input bindings will be documented after implementation and testing.
+## Architecture
 
-## Planned Technical Approach
+Gameplay rules belong in C++. Blueprint assets assign models, animation, effects, audio, UI, input assets, and tuning values.
 
-| Area | Design intent |
+| Class or component | Status | Responsibility |
+| --- | --- | --- |
+| `MagicTourCharacter` | Implemented foundation | Ground movement and Enhanced Input action binding; later coordinates flight, landing, and casting. |
+| `MagicTourPlayerController` | Implemented foundation | Adds input mapping contexts and manages the camera manager and optional touch controls. |
+| `MagicTourCameraManager` | Implemented foundation | Applies the current camera pitch limits. |
+| `MagicTourGameMode` | Implemented foundation | Current project GameMode entry point; later manages objectives and win or failure states. |
+| `FlightComponent` | Planned | Flight direction, speed, vertical movement, boost, and movement-mode transitions. |
+| `HealthComponent` | Planned | Shared health, damage processing, and death events. |
+| `SpellProjectile` | Planned | Projectile movement, collision, damage, and lifetime. |
+| `EnemyCharacter` / `EnemyAIController` | Planned | Enemy detection, pursuit, attack, and death behavior. |
+| `Checkpoint` / `LandingZone` | Planned | Ordered route progression and validated entry into the final encounter. |
+| HUD Widget | Planned | Health, objectives, crosshair, controls, and result display. |
+
+Movement state and level progress will remain separate. Landing or taking off during traversal must not reset checkpoint progress.
+
+## Project Structure
+
+```text
+MagicTour/
+├── Config/                         # Engine, map, input, and project settings
+├── Content/
+│   ├── Characters/                 # Shared mannequin meshes, materials, rigs, and animation
+│   ├── Input/                      # Enhanced Input actions and mapping contexts
+│   ├── LevelPrototyping/           # Shared blockout assets retained from the UE template
+│   ├── MagicTour/
+│   │   └── Environment/            # Project-specific forest, ruins, materials, and blockout meshes
+│   └── ThirdPerson/
+│       ├── Blueprints/             # Character, PlayerController, and GameMode Blueprints
+│       └── Maps/                   # Lvl_MagicTour
+├── Source/
+│   ├── MagicTour.Target.cs
+│   ├── MagicTourEditor.Target.cs
+│   └── MagicTour/
+│       ├── Characters/             # Player and later enemy character classes
+│       ├── Framework/              # GameMode, PlayerController, and CameraManager
+│       ├── MagicTour.Build.cs
+│       ├── MagicTour.cpp
+│       └── MagicTour.h
+├── docs/                            # Development plan and internal project notes
+└── MagicTour.uproject
+```
+
+Future C++ systems will use the planned `Components/`, `Combat/`, `AI/`, and `World/` categories described in `docs/project-structure.md` as those systems are implemented.
+
+## Development Environment
+
+| Item | Validated setup |
 | --- | --- |
-| Movement | Keep flight and walking on one `ACharacter`, using `CharacterMovement` for displacement and collision. A flight component will manage direction, speed, and boost. |
-| Health and damage | Share a health component between player and enemies, with events for health changes and death. Projectiles will use UE damage handling. |
-| Progression | Separate movement state from level progress so landing and taking off do not reset objectives. Validate checkpoint order and prevent duplicate completion. |
-| Enemy AI | Use a small set of detection, chase, attack, and death states with navigation in the combat arena. |
-| Presentation | Implement gameplay rules in C++; use Blueprint for asset assignment, animation, VFX, audio, UI, and tuning parameters. |
+| Unreal Engine | UE 5.8 project association; current development installation is UE 5.8.2. |
+| Target platform | macOS on Apple Silicon. |
+| C++ toolchain | Xcode toolchain, successfully used to build `MagicTourEditor`. |
+| Input system | Enhanced Input. |
+| Rendering | Lumen and hardware ray tracing are enabled in the current project configuration. |
 
-Implementation details, source links, and verified behavior will be added as these systems become playable.
+## Running the Project
 
-## Planned Architecture
+1. Install a compatible Unreal Engine 5.8 release and Xcode toolchain.
+2. Open `MagicTour.uproject` from the repository root.
+3. Allow Unreal Editor to compile project modules if prompted.
+4. Open `/Game/ThirdPerson/Maps/Lvl_MagicTour` if it is not already loaded.
+5. Select **Play** in the editor.
 
-| Class or component | Responsibility |
-| --- | --- |
-| `MagicTourGameMode` | Objective progress, encounter activation, and victory/failure conditions. |
-| `PlayerController` | Input mappings, input mode, and HUD creation. |
-| `PlayerCharacter` | Player actions, component coordination, casting, and movement transitions. |
-| `FlightComponent` | Flight controls and configurable movement parameters. |
-| `HealthComponent` | Health, damage processing, and death notifications. |
-| `SpellProjectile` | Projectile movement, collision, damage, and lifetime. |
-| `EnemyCharacter` / `EnemyAIController` | Enemy actions and behavior decisions. |
-| `Checkpoint` / `LandingZone` | Route triggers and validated entry into the final encounter. |
+The map and project GameMode are already configured as defaults, so normal editor startup should open the correct level and use the third-person character automatically.
 
-Project code will live under `Source/MagicTour/`, project assets under `Content/MagicTour/`, and engine configuration under `Config/`.
+## Current Map
 
-## Development Environment and Running
+`Lvl_MagicTour` is a gameplay blockout rather than final environment art. It currently contains:
 
-The initial target is **macOS on Apple Silicon**.
+- A small meadow used as the starting area.
+- A large forest with collision on tree trunks and no collision on tree crowns.
+- A curved path sized for walking and later low-altitude flight testing.
+- Open air above the forest for the future free-flight phase.
+- A ruins clearing surrounded by forest for the future combat encounter.
 
-| Item | Current status |
-| --- | --- |
-| Unreal Engine | 5.8.2 installed; selected for project development. |
-| C++ toolchain | Xcode installed; compatibility with the selected UE version is not yet verified. |
-| Code editor | VS Code available. |
-| Build and runtime validation | Pending project creation. |
-
-This repository cannot be built or launched yet: `MagicTour.uproject` and the C++ module files are not present.
-
-### Intended Startup Workflow
-
-After the Third Person C++ project has been created and successfully built:
-
-1. Open the repository's `MagicTour.uproject` with Unreal Engine 5.8.2.
-2. Allow the editor to finish loading assets and compiling shaders.
-3. Open the project's gameplay map and select **Play** to run in the editor.
-
-These steps have not been validated yet. The exact map, compatible Xcode version, and C++ build instructions will be recorded after the first successful build and editor run.
+The current surface tags express the intended landing rules, but the future `FlightComponent` must validate the hit surface, slope, and available character space before landing.
 
 ## Scope and Limitations
 
-The MVP is intentionally limited to one map, one playable character, one spell, and one enemy type. Development will prioritize a complete playable loop before environment art and visual polish.
+The MVP is limited to one map, one playable character, one projectile spell, one enemy type, 2–3 enemy instances, 3–5 route checkpoints, and a minimal HUD. Development will prioritize a complete playable loop before final environment art and visual polish.
 
-Multiplayer, open-world systems, inventory, skill trees, saves, and complex flight physics are outside the initial scope. No platform compatibility or performance results have been validated yet.
+Multiplayer, open-world systems, inventory, equipment, skill trees, dialogue, saves, complex aerodynamic simulation, and multiple spells are outside the initial scope.
 
-## Contributions and Asset Credits
+## Asset Credits
 
-The intended portfolio contribution is gameplay design, C++ systems, Blueprint integration, level assembly, and testing. Completed implementation work will be documented as development progresses.
-
-Third-party models, textures, animations, and effects may be used. No art assets have been added yet; sources, licenses, and required attribution will be recorded here as assets are introduced.
+The current project uses Unreal Engine template mannequin, animation, input, and level-prototyping assets together with project-created blockout meshes and materials. Sources, licenses, and required attribution for any later third-party environment, character, animation, audio, or VFX assets will be recorded here when those assets are introduced.

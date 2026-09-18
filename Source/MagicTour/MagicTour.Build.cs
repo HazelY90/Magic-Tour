@@ -15,23 +15,14 @@ public class MagicTour : ModuleRules
 			"InputCore",
 			"EnhancedInput",
 			"AIModule",
-			"StateTreeModule",
-			"GameplayStateTreeModule",
 			"UMG",
 			"Slate"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 
-		PublicIncludePaths.AddRange(new string[] {
-			"MagicTour",
-			"MagicTour/Variant_Horror",
-			"MagicTour/Variant_Horror/UI",
-			"MagicTour/Variant_Shooter",
-			"MagicTour/Variant_Shooter/AI",
-			"MagicTour/Variant_Shooter/UI",
-			"MagicTour/Variant_Shooter/Weapons"
-		});
+		// Keep the module root available for module-relative includes.
+		PublicIncludePaths.Add("MagicTour");
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

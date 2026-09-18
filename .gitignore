@@ -1,6 +1,7 @@
 # documents
 docs/
 AGENTS.md
+.codex/
 
 # Unreal-generated project output; keep Config, Content, Source, and Build tracked.
 /Binaries/
