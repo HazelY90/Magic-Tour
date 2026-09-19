@@ -6,14 +6,16 @@ Magic Tour is a small gameplay prototype built around a short sequence of free f
 
 ## Current Status
 
-The Unreal project is created and the initial third-person foundation is playable in the editor.
+The Unreal project is created and the initial third-person and arcade-flight foundations are playable in the editor.
 
 Completed work:
 
 - Created the initial forest map with a meadow, traversal path, and ruins area.
 - Added a playable third-person character with basic ground movement and camera controls.
+- Added walking/flight switching, vertical flight controls, boost, and configurable flight movement parameters.
+- Added a Blueprint-adjustable placeholder broom that is visible only during flight.
 
-The current playable scope is limited to third-person walking, turning, looking, and jumping. Flight, landing validation, checkpoints, combat, enemies, HUD, victory, and restart systems are still planned.
+The current playable scope includes third-person ground movement and basic free flight. Landing validation, checkpoints, combat, enemies, HUD, victory, and restart systems are still planned.
 
 There is no packaged build or gameplay recording yet.
 
@@ -24,8 +26,12 @@ There is no packaged build or gameplay recording yet.
 | Move | `W`, `A`, `S`, `D` or arrow keys | Left stick |
 | Look | Mouse | Right stick |
 | Jump | `Space` | Bottom face button |
+| Toggle flight | `F` | Top face button |
+| Ascend | `Space` | Right shoulder |
+| Descend | `Left Ctrl` | Left shoulder |
+| Boost | `Left Shift` | Right trigger |
 
-Flight, ascend, descend, boost, landing, and spell controls will be added with their gameplay systems.
+Landing validation and spell controls will be added with their gameplay systems.
 
 ## Planned Gameplay
 
@@ -45,11 +51,11 @@ Gameplay rules belong in C++. Blueprint assets assign models, animation, effects
 
 | Class or component | Status | Responsibility |
 | --- | --- | --- |
-| `MagicTourCharacter` | Implemented foundation | Ground movement and Enhanced Input action binding; later coordinates flight, landing, and casting. |
+| `MagicTourCharacter` | Implemented foundation | Ground movement, flight input coordination, and placeholder broom presentation; later coordinates landing and casting. |
 | `MagicTourPlayerController` | Implemented foundation | Adds input mapping contexts and manages the camera manager and optional touch controls. |
 | `MagicTourCameraManager` | Implemented foundation | Applies the current camera pitch limits. |
 | `MagicTourGameMode` | Implemented foundation | Current project GameMode entry point; later manages objectives and win or failure states. |
-| `FlightComponent` | Planned | Flight direction, speed, vertical movement, boost, and movement-mode transitions. |
+| `FlightComponent` | Implemented foundation | Walking/flight transitions, vertical movement, speed, acceleration, braking, and boost. |
 | `HealthComponent` | Planned | Shared health, damage processing, and death events. |
 | `SpellProjectile` | Planned | Projectile movement, collision, damage, and lifetime. |
 | `EnemyCharacter` / `EnemyAIController` | Planned | Enemy detection, pursuit, attack, and death behavior. |

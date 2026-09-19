@@ -9,6 +9,9 @@
 
 class UInputComponent;
 class UInputAction;
+class USceneComponent;
+class UStaticMeshComponent;
+class UFlightComponent;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -38,11 +41,44 @@ protected:
 	/** Mouse Look Input Action */
 	UPROPERTY(EditAnywhere, Category ="Input")
 	class UInputAction* MouseLookAction;
+
+	/** Toggle Flight Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* ToggleFlightAction;
+
+	/** Ascend Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* AscendAction;
+
+	/** Descend Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* DescendAction;
+
+	/** Boost Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* BoostAction;
+
+	/** Flight behavior shared by C++ and Blueprint presentation. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Flight", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UFlightComponent> Flight;
+
+	/** Blueprint-adjustable attachment point for the placeholder broom. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Flight|Broom", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<USceneComponent> BroomRoot;
+
+	/** Replaceable placeholder broom mesh. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Flight|Broom", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UStaticMeshComponent> BroomMesh;
+
+	/** Attachment point reserved for a future flight trail effect. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Flight|Broom", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<USceneComponent> BroomTrailPoint;
 	
 public:
 	AMagicTourCharacter();
 
 protected:
+	virtual void BeginPlay() override;
 
 	/** Called from Input Actions for movement input */
 	void MoveInput(const FInputActionValue& Value);
@@ -65,6 +101,25 @@ protected:
 	/** Handles jump end inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoJumpEnd();
+
+	/** Toggles flight mode. */
+	void ToggleFlight();
+
+	/** Adds upward flight input. */
+	void AscendInput();
+
+	/** Adds downward flight input. */
+	void DescendInput();
+
+	/** Enables flight boost. */
+	void BoostStart();
+
+	/** Disables flight boost. */
+	void BoostEnd();
+
+	/** Updates presentation components when flight state changes. */
+	UFUNCTION()
+	void FlightChanged(bool isFlying);
 
 protected:
 
