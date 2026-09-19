@@ -85,9 +85,6 @@ void AMagicTourCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EnhancedInputComponent->BindAction(ToggleFlightAction, ETriggerEvent::Started, this, &AMagicTourCharacter::ToggleFlight);
 		EnhancedInputComponent->BindAction(AscendAction, ETriggerEvent::Triggered, this, &AMagicTourCharacter::AscendInput);
 		EnhancedInputComponent->BindAction(DescendAction, ETriggerEvent::Triggered, this, &AMagicTourCharacter::DescendInput);
-		EnhancedInputComponent->BindAction(BoostAction, ETriggerEvent::Started, this, &AMagicTourCharacter::BoostStart);
-		EnhancedInputComponent->BindAction(BoostAction, ETriggerEvent::Completed, this, &AMagicTourCharacter::BoostEnd);
-		EnhancedInputComponent->BindAction(BoostAction, ETriggerEvent::Canceled, this, &AMagicTourCharacter::BoostEnd);
 	}
 	else
 	{
@@ -178,22 +175,6 @@ void AMagicTourCharacter::DescendInput()
 	if (Flight)
 	{
 		Flight->MoveVertical(-1.0f);
-	}
-}
-
-void AMagicTourCharacter::BoostStart()
-{
-	if (Flight)
-	{
-		Flight->StartBoost();
-	}
-}
-
-void AMagicTourCharacter::BoostEnd()
-{
-	if (Flight)
-	{
-		Flight->StopBoost();
 	}
 }
 

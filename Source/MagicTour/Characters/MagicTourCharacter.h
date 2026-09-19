@@ -54,10 +54,6 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* DescendAction;
 
-	/** Boost Input Action */
-	UPROPERTY(EditAnywhere, Category="Input")
-	UInputAction* BoostAction;
-
 	/** Flight behavior shared by C++ and Blueprint presentation. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Flight", meta=(AllowPrivateAccess="true"))
 	TObjectPtr<UFlightComponent> Flight;
@@ -110,12 +106,6 @@ protected:
 
 	/** Adds downward flight input. */
 	void DescendInput();
-
-	/** Enables flight boost. */
-	void BoostStart();
-
-	/** Disables flight boost. */
-	void BoostEnd();
 
 	/** Updates presentation components when flight state changes. */
 	UFUNCTION()

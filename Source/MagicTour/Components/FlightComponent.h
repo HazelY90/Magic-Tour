@@ -22,6 +22,8 @@ class MAGICTOUR_API UFlightComponent : public UActorComponent
 public:
 	UFlightComponent();
 
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
 	/** Toggles between flight and gravity-driven ground movement. */
 	UFUNCTION(BlueprintCallable, Category="Flight")
 	void ToggleFlight();
@@ -30,17 +32,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Flight")
 	void MoveVertical(float Value);
 
-	/** Enables the configured boost speed while flying. */
-	UFUNCTION(BlueprintCallable, Category="Flight")
-	void StartBoost();
-
-	/** Restores the normal flight speed. */
-	UFUNCTION(BlueprintCallable, Category="Flight")
-	void StopBoost();
-
 	/** Returns true while the movement component is using MOVE_Flying. */
 	UFUNCTION(BlueprintPure, Category="Flight")
 	bool IsFlying() const;
+
+	/** Returns true while the automatic takeoff lift is active. */
+	UFUNCTION(BlueprintPure, Category="Flight")
+	bool IsTakingOff() const { return isTakingOff; }
 
 	/** Broadcast when the character enters or leaves flight. */
 	UPROPERTY(BlueprintAssignable, Category="Flight")
@@ -49,26 +47,33 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
-	/** Maximum speed during normal flight. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flight|Movement", meta=(ClampMin="0.0"))
-	float FlySpeed = 900.0f;
+	/** Height added to the character's position when automatic takeoff begins. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flight|Takeoff", meta=(ClampMin="0.0"))
+	float TakeoffHeight = 200.0f;
 
-	/** Maximum speed while boost is held. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flight|Movement", meta=(ClampMin="0.0"))
-	float BoostSpeed = 1600.0f;
+	/** Maximum upward speed during automatic takeoff. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flight|Takeoff", meta=(ClampMin="0.0"))
+	float TakeoffSpeed = 350.0f;
 
-	/** Acceleration used while flying. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flight|Movement", meta=(ClampMin="0.0"))
-	float Accel = 2400.0f;
+	/** Deceleration used while approaching the automatic takeoff height. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flight|Takeoff", meta=(ClampMin="0.0"))
+	float TakeoffBrake = 900.0f;
 
-	/** Braking applied when flight input is released. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flight|Movement", meta=(ClampMin="0.0"))
-	float Brake = 1800.0f;
+	/** Maximum time allowed for automatic takeoff before normal flight begins. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flight|Takeoff", meta=(ClampMin="0.0"))
+	float TakeoffDuration = 2.0f;
 
 private:
 	ACharacter* GetCharacter() const;
 	UCharacterMovementComponent* GetMove() const;
 	void SetFlight(bool isFlying);
-	void ApplySpeed(bool isBoosting);
-	float GroundAccel = 0.0f;
+	void BeginTakeoff();
+	void EndTakeoff();
+	float TakeoffZ = 0.0f;
+	float TakeoffTime = 0.0f;
+	float LastTakeoffZ = 0.0f;
+	float StallTime = 0.0f;
+	float FlightFloorZ = 0.0f;
+	bool isTakingOff = false;
+	bool isFlightFloorSet = false;
 };

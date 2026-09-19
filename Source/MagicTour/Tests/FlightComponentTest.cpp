@@ -68,28 +68,45 @@ bool FFlightComponentTest::RunTest(const FString& Parameters)
 
 	if (Flight && Move && Broom)
 	{
+		const float DefaultAccel = Move->MaxAcceleration;
 		TestFalse(TEXT("Character starts outside flight"), Flight->IsFlying());
 		TestFalse(TEXT("Broom starts hidden"), Broom->IsVisible());
 
 		Flight->ToggleFlight();
 		TestTrue(TEXT("Toggle enters MOVE_Flying"), Flight->IsFlying());
-		TestEqual(TEXT("Normal flight speed"), Move->MaxFlySpeed, 900.0f);
+		TestTrue(TEXT("Toggle starts automatic takeoff"), Flight->IsTakingOff());
+		TestEqual(TEXT("Flight uses walking speed"), Move->MaxFlySpeed, Move->MaxWalkSpeed);
+		TestEqual(TEXT("Flight uses walking braking"), Move->BrakingDecelerationFlying, Move->BrakingDecelerationWalking);
+		TestEqual(TEXT("Flight keeps default acceleration"), Move->MaxAcceleration, DefaultAccel);
 		TestTrue(TEXT("Broom is visible during flight"), Broom->IsVisible());
+
+		Flight->TickComponent(0.1f, LEVELTICK_All, nullptr);
+		TestTrue(TEXT("Automatic takeoff adds upward velocity"), Move->Velocity.Z > 0.0f);
+		Character->SetActorLocation(FVector(0.0f, 0.0f, 200.0f));
+		Flight->TickComponent(0.1f, LEVELTICK_All, nullptr);
+		TestFalse(TEXT("Automatic takeoff ends at target height"), Flight->IsTakingOff());
+		TestEqual(TEXT("Automatic takeoff stops vertical velocity"), Move->Velocity.Z, 0.0);
 
 		Flight->MoveVertical(1.0f);
 		TestTrue(TEXT("Ascend adds positive world-Z input"), Character->GetPendingMovementInputVector().Z > 0.0f);
 		Character->ConsumeMovementInputVector();
 		Flight->MoveVertical(-1.0f);
-		TestTrue(TEXT("Descend adds negative world-Z input"), Character->GetPendingMovementInputVector().Z < 0.0f);
-
-		Flight->StartBoost();
-		TestEqual(TEXT("Boost speed"), Move->MaxFlySpeed, 1600.0f);
-		Flight->StopBoost();
-		TestEqual(TEXT("Boost release restores normal speed"), Move->MaxFlySpeed, 900.0f);
+		TestTrue(TEXT("Descend is blocked at the flight floor"), Character->GetPendingMovementInputVector().IsNearlyZero());
+		Character->SetActorLocation(FVector(0.0f, 0.0f, 250.0f));
+		Flight->MoveVertical(-1.0f);
+		TestTrue(TEXT("Descend works above the flight floor"), Character->GetPendingMovementInputVector().Z < 0.0f);
+		Character->ConsumeMovementInputVector();
+		Character->SetActorLocation(FVector(0.0f, 0.0f, 190.0f));
+		Move->Velocity.Z = -100.0f;
+		Flight->TickComponent(0.1f, LEVELTICK_All, nullptr);
+		TestTrue(TEXT("Flight floor clamps altitude"), Character->GetActorLocation().Z >= 200.0f);
+		TestEqual(TEXT("Flight floor stops downward velocity"), Move->Velocity.Z, 0.0);
 
 		Flight->ToggleFlight();
 		TestFalse(TEXT("Second toggle leaves flight"), Flight->IsFlying());
 		TestEqual(TEXT("Flight exit enables gravity movement"), Move->MovementMode, MOVE_Falling);
+		TestTrue(TEXT("Flight exit clears residual velocity"), Move->Velocity.IsNearlyZero());
+		TestEqual(TEXT("Flight exit keeps default acceleration"), Move->MaxAcceleration, DefaultAccel);
 		TestFalse(TEXT("Broom hides after flight"), Broom->IsVisible());
 	}
 
