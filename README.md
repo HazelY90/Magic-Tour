@@ -14,8 +14,10 @@ Completed work:
 - Added a playable third-person character with basic ground movement and camera controls.
 - Added walking/flight switching, vertical flight controls, boost, and configurable flight movement parameters.
 - Added a Blueprint-adjustable placeholder broom that is visible only during flight.
+- Added `ABP_MagicTour`, retaining the existing locomotion flow and switching to a fixed single-frame pose while the character is flying.
+- Created and connected the `A_Flight_Fixed` pose; ground locomotion and flight pose switching have been verified in the editor.
 
-The current playable scope includes third-person ground movement and basic free flight. Landing validation, checkpoints, combat, enemies, HUD, victory, and restart systems are still planned.
+The current playable scope includes third-person ground movement, basic free flight, and an initial fixed flight pose. Fine-tuning the pose and broom alignment is the next animation task. Landing validation, checkpoints, combat, enemies, HUD, victory, and restart systems are still planned.
 
 There is no packaged build or gameplay recording yet.
 
@@ -74,6 +76,7 @@ MagicTour/
 │   ├── Input/                      # Enhanced Input actions and mapping contexts
 │   ├── LevelPrototyping/           # Shared blockout assets retained from the UE template
 │   ├── MagicTour/
+│   │   ├── Characters/Animations/  # Project animation Blueprint, flight pose, and source sequence
 │   │   └── Environment/            # Project-specific forest, ruins, materials, and blockout meshes
 │   └── ThirdPerson/
 │       ├── Blueprints/             # Character, PlayerController, and GameMode Blueprints
