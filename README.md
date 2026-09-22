@@ -2,7 +2,7 @@
 
 **Third-Person Flight and Combat Prototype · Unreal Engine 5 · C++ · Blueprint**
 
-Magic Tour is a small gameplay prototype built around a short sequence of free flight, low-altitude forest traversal, landing, and projectile-based magic combat. The project is intended as a focused portfolio piece that demonstrates Unreal Engine gameplay programming in C++ with Blueprint-based presentation and tuning.
+Magic Tour is a small gameplay prototype built around free flight, forest traversal, ordered route objectives, and projectile-based magic combat. The project is intended as a focused portfolio piece that demonstrates Unreal Engine gameplay programming in C++ with Blueprint-based presentation and tuning.
 
 ## Current Status
 
@@ -12,12 +12,15 @@ Completed work:
 
 - Created the initial forest map with a meadow, traversal path, and ruins area.
 - Added a playable third-person character with basic ground movement and camera controls.
-- Added walking/flight switching, vertical flight controls, boost, and configurable flight movement parameters.
+- Added walking/flight switching, automatic takeoff, vertical flight controls, and configurable flight movement parameters.
 - Added a Blueprint-adjustable placeholder broom that is visible only during flight.
 - Added `ABP_MagicTour`, retaining the existing locomotion flow and switching to a fixed single-frame pose while the character is flying.
 - Created and connected the `A_Flight_Fixed` pose; ground locomotion and flight pose switching have been verified in the editor.
+- Added three ordered invisible route checkpoints at the forest entrance, trail midpoint, and ruins entrance.
+- Added task-stage updates for exploring the forest, exploring the ruins, and defeating enemies.
+- Added a top-left gameplay HUD with a reserved health bar and live task guidance.
 
-The current playable scope includes third-person ground movement, basic free flight, and an initial fixed flight pose. Fine-tuning the pose and broom alignment is the next animation task. Landing validation, checkpoints, combat, enemies, HUD, victory, and restart systems are still planned.
+The current playable scope includes third-person ground movement, free flight, repeated walking/flight transitions, an initial fixed flight pose, three ordered checkpoints, and live task guidance. Combat, enemies, real health, victory, failure, and restart systems are still planned.
 
 There is no packaged build or gameplay recording yet.
 
@@ -31,9 +34,8 @@ There is no packaged build or gameplay recording yet.
 | Toggle flight | `F` | Top face button |
 | Ascend | `Space` | Right shoulder |
 | Descend | `Left Ctrl` | Left shoulder |
-| Boost | `Left Shift` | Right trigger |
 
-Landing validation and spell controls will be added with their gameplay systems.
+Spell controls will be added with the combat system.
 
 ## Planned Gameplay
 
@@ -41,30 +43,30 @@ Landing validation and spell controls will be added with their gameplay systems.
 
 - Fly freely above the forest and descend into the low-altitude route.
 - Navigate a curved corridor between trees by flying or walking.
-- Land only on valid meadow and path surfaces, then take off again without losing progress.
-- Complete 3–5 ordered route checkpoints.
-- Enter the ruins encounter after satisfying the route objectives.
+- Switch freely between flight and gravity-driven ground movement without resetting route progress.
+- Complete three invisible route checkpoints in order.
+- Reach the ruins entrance to change the active task to combat.
 - Use one projectile spell to defeat 2–3 enemies.
 - Support health, damage, victory, failure, and restart states.
 
 ## Architecture
 
-Gameplay rules belong in C++. Blueprint assets assign models, animation, effects, audio, UI, input assets, and tuning values.
+Gameplay rules and the current HUD layout belong in C++. Blueprint assets assign models, animation, effects, audio, input assets, and tuning values.
 
 | Class or component | Status | Responsibility |
 | --- | --- | --- |
-| `MagicTourCharacter` | Implemented foundation | Ground movement, flight input coordination, and placeholder broom presentation; later coordinates landing and casting. |
-| `MagicTourPlayerController` | Implemented foundation | Adds input mapping contexts and manages the camera manager and optional touch controls. |
+| `MagicTourCharacter` | Implemented foundation | Ground movement, flight input coordination, and placeholder broom presentation; later coordinates casting. |
+| `MagicTourPlayerController` | Implemented foundation | Adds input mapping contexts, creates the gameplay HUD, and manages the camera manager and optional touch controls. |
 | `MagicTourCameraManager` | Implemented foundation | Applies the current camera pitch limits. |
-| `MagicTourGameMode` | Implemented foundation | Current project GameMode entry point; later manages objectives and win or failure states. |
-| `FlightComponent` | Implemented foundation | Walking/flight transitions, vertical movement, speed, acceleration, braking, and boost. |
+| `MagicTourGameMode` | Implemented route progress | Enforces checkpoint order and exposes the current task stage; later manages enemy counts and win or failure states. |
+| `FlightComponent` | Implemented foundation | Walking/flight transitions, automatic takeoff, vertical movement, speed, acceleration, and braking. |
 | `HealthComponent` | Planned | Shared health, damage processing, and death events. |
 | `SpellProjectile` | Planned | Projectile movement, collision, damage, and lifetime. |
 | `EnemyCharacter` / `EnemyAIController` | Planned | Enemy detection, pursuit, attack, and death behavior. |
-| `Checkpoint` / `LandingZone` | Planned | Ordered route progression and validated entry into the final encounter. |
-| HUD Widget | Planned | Health, objectives, crosshair, controls, and result display. |
+| `Checkpoint` | Implemented | Three invisible ordered route triggers with duplicate and out-of-order protection. |
+| `MagicTourHUDWidget` | Implemented foundation | English task guidance and a reserved health bar; later adds real health data, crosshair, controls, and results. |
 
-Movement state and level progress will remain separate. Landing or taking off during traversal must not reset checkpoint progress.
+Movement state and level progress are separate. Switching between walking and flight does not reset checkpoint progress.
 
 ## Project Structure
 
@@ -86,7 +88,11 @@ MagicTour/
 │   ├── MagicTourEditor.Target.cs
 │   └── MagicTour/
 │       ├── Characters/             # Player and later enemy character classes
-│       ├── Framework/              # GameMode, PlayerController, and CameraManager
+│       ├── Components/              # Reusable gameplay components, including flight
+│       ├── Framework/               # GameMode, PlayerController, and CameraManager
+│       ├── Tests/                   # Editor automation tests
+│       ├── UI/                      # Gameplay HUD
+│       ├── World/                   # Route checkpoint actors
 │       ├── MagicTour.Build.cs
 │       ├── MagicTour.cpp
 │       └── MagicTour.h
@@ -94,7 +100,7 @@ MagicTour/
 └── MagicTour.uproject
 ```
 
-Future C++ systems will use the planned `Components/`, `Combat/`, `AI/`, and `World/` categories described in `docs/project-structure.md` as those systems are implemented.
+Future combat and enemy systems will use the planned `Combat/` and `AI/` categories described in `docs/project-structure.md`.
 
 ## Development Environment
 
@@ -122,15 +128,14 @@ The map and project GameMode are already configured as defaults, so normal edito
 
 - A small meadow used as the starting area.
 - A large forest with collision on tree trunks and no collision on tree crowns.
-- A curved path sized for walking and later low-altitude flight testing.
-- Open air above the forest for the future free-flight phase.
-- A ruins clearing surrounded by forest for the future combat encounter.
-
-The current surface tags express the intended landing rules, but the future `FlightComponent` must validate the hit surface, slope, and available character space before landing.
+- A curved path used for walking and low-altitude flight.
+- Open air above the forest for free flight.
+- Three invisible ordered checkpoints at the forest entrance, trail midpoint, and ruins entrance.
+- A ruins clearing surrounded by forest for the planned combat encounter.
 
 ## Scope and Limitations
 
-The MVP is limited to one map, one playable character, one projectile spell, one enemy type, 2–3 enemy instances, 3–5 route checkpoints, and a minimal HUD. Development will prioritize a complete playable loop before final environment art and visual polish.
+The MVP is limited to one map, one playable character, one projectile spell, one enemy type, 2–3 enemy instances, three route checkpoints, and a minimal HUD. Development will prioritize a complete playable loop before final environment art and visual polish.
 
 Multiplayer, open-world systems, inventory, equipment, skill trees, dialogue, saves, complex aerodynamic simulation, and multiple spells are outside the initial scope.
 

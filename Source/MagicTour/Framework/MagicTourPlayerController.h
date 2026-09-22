@@ -8,6 +8,7 @@
 
 class UInputMappingContext;
 class UUserWidget;
+class UMagicTourHUDWidget;
 
 /**
  *  Player Controller for the third-person character.
@@ -41,6 +42,10 @@ protected:
 	/** Pointer to the mobile controls widget */
 	UPROPERTY()
 	TObjectPtr<UUserWidget> MobileControlsWidget;
+
+	/** Persistent gameplay HUD for health and task guidance. */
+	UPROPERTY()
+	TObjectPtr<UMagicTourHUDWidget> HUDWidget;
 
 	/** If true, the player will use UMG touch controls even if not playing on mobile platforms */
 	UPROPERTY(EditAnywhere, Config, Category = "Input|Touch Controls")

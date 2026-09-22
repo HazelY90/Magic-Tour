@@ -2,12 +2,14 @@
 
 
 #include "Framework/MagicTourPlayerController.h"
+#include "Framework/MagicTourGameMode.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "InputMappingContext.h"
 #include "Framework/MagicTourCameraManager.h"
 #include "Blueprint/UserWidget.h"
 #include "MagicTour.h"
+#include "UI/MagicTourHUDWidget.h"
 #include "Widgets/Input/SVirtualJoystick.h"
 
 AMagicTourPlayerController::AMagicTourPlayerController()
@@ -20,24 +22,36 @@ void AMagicTourPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	
-	// only spawn touch controls on local player controllers
-	if (IsLocalPlayerController() && ShouldUseTouchControls())
+	if (!IsLocalPlayerController())
 	{
-		// spawn the mobile controls widget
+		return;
+	}
+
+	// Create the persistent gameplay HUD before optional touch controls.
+	HUDWidget = CreateWidget<UMagicTourHUDWidget>(this, UMagicTourHUDWidget::StaticClass());
+	if (HUDWidget)
+	{
+		HUDWidget->SetProgress(GetWorld() ? GetWorld()->GetAuthGameMode<AMagicTourGameMode>() : nullptr);
+		HUDWidget->AddToPlayerScreen(10);
+	}
+	else
+	{
+		UE_LOG(LogMagicTour, Error, TEXT("Could not spawn the gameplay HUD widget."));
+	}
+
+	// Only spawn touch controls when the current platform requires them.
+	if (ShouldUseTouchControls())
+	{
 		MobileControlsWidget = CreateWidget<UUserWidget>(this, MobileControlsWidgetClass);
 
 		if (MobileControlsWidget)
 		{
-			// add the controls to the player screen
 			MobileControlsWidget->AddToPlayerScreen(0);
-
-		} else {
-
-			UE_LOG(LogMagicTour, Error, TEXT("Could not spawn mobile controls widget."));
-
 		}
-
+		else
+		{
+			UE_LOG(LogMagicTour, Error, TEXT("Could not spawn mobile controls widget."));
+		}
 	}
 }
 
