@@ -9,6 +9,8 @@
 class UInputMappingContext;
 class UUserWidget;
 class UMagicTourHUDWidget;
+class UHealthComponent;
+class UInputAction;
 
 /**
  *  Player Controller for the third-person character.
@@ -50,6 +52,27 @@ protected:
 	/** If true, the player will use UMG touch controls even if not playing on mobile platforms */
 	UPROPERTY(EditAnywhere, Config, Category = "Input|Touch Controls")
 	bool bForceTouchControls = false;
+
+	/** Follow the current pawn and release delegate bindings during teardown. */
+	UPROPERTY()
+	TObjectPtr<UHealthComponent> Health;
+
+	UFUNCTION()
+	void PawnChanged(APawn* OldPawn, APawn* NewPawn);
+
+	UFUNCTION()
+	void HealthChanged(float Current, float Max);
+
+	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+
+	/** Native default mapping keeps the first spell playable without an asset setup step. */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> CastAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputMappingContext> CastMap;
+
+	void CastInput();
 
 	/** Gameplay initialization */
 	virtual void BeginPlay() override;

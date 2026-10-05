@@ -5,6 +5,7 @@
 #include "Blueprint/WidgetTree.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Components/Border.h"
 #include "Components/ProgressBar.h"
 #include "Components/Spacer.h"
 #include "Components/TextBlock.h"
@@ -25,6 +26,20 @@ bool UMagicTourHUDWidget::Initialize()
 
 	UCanvasPanel* Root = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("Root"));
 	WidgetTree->RootWidget = Root;
+
+	// Two anchored bars remain centered across aspect ratios and viewport sizes.
+	for (int32 Index = 0; Index < 2; ++Index)
+	{
+		UBorder* Bar = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(),
+			Index == 0 ? TEXT("CrosshairH") : TEXT("CrosshairV"));
+		Bar->SetBrushColor(FLinearColor::White);
+		Bar->SetVisibility(ESlateVisibility::HitTestInvisible);
+		UCanvasPanelSlot* Slot = Root->AddChildToCanvas(Bar);
+		Slot->SetAnchors(FAnchors(0.5f, 0.5f));
+		Slot->SetAlignment(FVector2D(0.5f, 0.5f));
+		Slot->SetPosition(FVector2D::ZeroVector);
+		Slot->SetSize(Index == 0 ? FVector2D(14.0f, 2.0f) : FVector2D(2.0f, 14.0f));
+	}
 
 	UVerticalBox* Panel = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("HUDPanel"));
 	UCanvasPanelSlot* PanelSlot = Root->AddChildToCanvas(Panel);

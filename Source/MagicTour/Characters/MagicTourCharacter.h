@@ -12,6 +12,10 @@ class UInputAction;
 class USceneComponent;
 class UStaticMeshComponent;
 class UFlightComponent;
+class UHealthComponent;
+class ASpellProjectile;
+class UAnimMontage;
+class UAnimSequenceBase;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -58,6 +62,27 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Flight", meta=(AllowPrivateAccess="true"))
 	TObjectPtr<UFlightComponent> Flight;
 
+	/** Reusable health and damage events. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Health")
+	TObjectPtr<UHealthComponent> Health;
+
+	/** Hand-attached muzzle with a Blueprint-adjustable local offset. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Spell")
+	TObjectPtr<USceneComponent> CastPoint;
+
+	UPROPERTY(EditDefaultsOnly, Category="Spell")
+	TSubclassOf<ASpellProjectile> SpellClass;
+
+	UPROPERTY(EditDefaultsOnly, Category="Spell", meta=(ClampMin="100.0"))
+	float AimRange = 10000.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category="Spell", meta=(ClampMin="0.0"))
+	float Cooldown = 0.4f;
+
+	/** Upper-body action asset; loaded only when casting is requested. */
+	UPROPERTY(EditDefaultsOnly, Category="Spell")
+	TSoftObjectPtr<UAnimMontage> CastMontage;
+
 	/** Blueprint-adjustable attachment point for the placeholder broom. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Flight|Broom", meta=(AllowPrivateAccess="true"))
 	TObjectPtr<USceneComponent> BroomRoot;
@@ -73,8 +98,47 @@ protected:
 public:
 	AMagicTourCharacter();
 
+	/** Gate for starting new casting actions. */
+	UFUNCTION(BlueprintPure, Category="Spell")
+	bool IsCastAllowed() const;
+
+	/** Resolve the center-screen aim point, including close-range fallback. */
+	bool GetAim(FVector& Pos, FVector& Dir) const;
+
+	/** Start the action; the montage notify releases the projectile later. */
+	UFUNCTION(BlueprintCallable, Category="Spell")
+	bool CastSpell();
+
+	/** Accept only the active montage's release notification, once per action. */
+	bool ReleaseSpell(UAnimSequenceBase* Animation, int32 InstanceId = INDEX_NONE);
+
+	UFUNCTION(BlueprintPure, Category="Spell")
+	bool IsCasting() const { return isCasting; }
+
+	/** Route UE damage through the shared health component. */
+	virtual float TakeDamage(float Amount, const FDamageEvent& Event, AController* Instigator, AActor* Causer) override;
+
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+	virtual void OnMovementModeChanged(EMovementMode PrevMode, uint8 PrevCustomMode = 0) override;
+
+	UFUNCTION()
+	void CancelCast();
+
+	void CastEnded(UAnimMontage* Montage, bool isInterrupted, uint32 Id);
+	bool IsCastStateValid() const;
+	bool SpawnSpell();
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimMontage> ActiveCast;
+
+	uint32 CastId = 0;
+	int32 CastInstance = INDEX_NONE;
+	bool isCasting = false;
+	bool isReleased = false;
+	bool isMoveOriented = true;
+	bool isControllerOriented = false;
 
 	/** Called from Input Actions for movement input */
 	void MoveInput(const FInputActionValue& Value);
@@ -112,6 +176,9 @@ protected:
 	void FlightChanged(bool isFlying);
 
 protected:
+
+	/** World time of the next permitted successful cast. */
+	double NextCast = 0.0;
 
 	/** Set up input action bindings */
 	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;

@@ -3,6 +3,13 @@
 #include "Characters/MagicTourCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/FlightComponent.h"
+#include "Components/HealthComponent.h"
+#include "Combat/SpellProjectile.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "EnhancedInputComponent.h"
@@ -15,6 +22,9 @@
 
 AMagicTourCharacter::AMagicTourCharacter()
 {
+	// Gameplay notifies and the hand muzzle must update even when the mesh is not rendered.
+	GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+
 	// Configure the collision capsule for the third-person character.
 	GetCapsuleComponent()->SetCapsuleSize(34.0f, 96.0f);
 
@@ -30,6 +40,12 @@ AMagicTourCharacter::AMagicTourCharacter()
 	Move->AirControl = 0.5f;
 
 	Flight = CreateDefaultSubobject<UFlightComponent>(TEXT("Flight"));
+	Health = CreateDefaultSubobject<UHealthComponent>(TEXT("Health"));
+	SpellClass = ASpellProjectile::StaticClass();
+	CastMontage = FSoftObjectPath(TEXT("/Game/MagicTour/Characters/Animations/AM_Cast.AM_Cast"));
+	CastPoint = CreateDefaultSubobject<USceneComponent>(TEXT("CastPoint"));
+	CastPoint->SetupAttachment(GetMesh(), TEXT("hand_r"));
+	CastPoint->SetRelativeLocation(FVector(0.0f, 0.0f, -10.0f));
 
 	// Attach the placeholder broom to the character skeleton and expose its transform to Blueprint.
 	BroomRoot = CreateDefaultSubobject<USceneComponent>(TEXT("BroomRoot"));
@@ -57,6 +73,8 @@ AMagicTourCharacter::AMagicTourCharacter()
 void AMagicTourCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	Health->OnDied.AddDynamic(this, &AMagicTourCharacter::CancelCast);
 
 	if (Flight)
 	{
@@ -184,4 +202,209 @@ void AMagicTourCharacter::FlightChanged(bool isFlying)
 	{
 		BroomRoot->SetVisibility(isFlying, true);
 	}
+}
+
+float AMagicTourCharacter::TakeDamage(float Amount, const FDamageEvent& Event, AController* Instigator, AActor* Causer)
+{
+	if (!Health || Health->IsDead() || !FMath::IsFinite(Amount) || Amount <= 0.0f || !CanBeDamaged())
+	{
+		return 0.0f;
+	}
+
+	const float Accepted = Super::TakeDamage(Amount, Event, Instigator, Causer);
+	return Health->ApplyDamage(Accepted);
+}
+
+bool AMagicTourCharacter::IsCastAllowed() const
+{
+	return IsCastStateValid() && !isCasting && GetWorld()->GetTimeSeconds() >= NextCast;
+}
+
+bool AMagicTourCharacter::GetAim(FVector& Pos, FVector& Dir) const
+{
+	if (!Controller || !CastPoint || !GetWorld())
+	{
+		return false;
+	}
+
+	FVector View;
+	FRotator Rot;
+	Controller->GetPlayerViewPoint(View, Rot);
+	const FVector Forward = Rot.Vector();
+	const float Range = FMath::IsFinite(AimRange) ? FMath::Max(100.0f, AimRange) : 10000.0f;
+	FVector Target = View + Forward * Range;
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(SpellAim), false, this);
+	FHitResult Hit;
+	if (GetWorld()->LineTraceSingleByChannel(Hit, View, Target, ECC_Visibility, Query))
+	{
+		Target = Hit.ImpactPoint;
+	}
+
+	Pos = CastPoint->GetComponentLocation();
+	// Preserve convergence for normal targets, but cap near-hit deflection at 45 degrees.
+	const FVector AimDir = (Target - Pos).GetSafeNormal();
+	if (FVector::DotProduct(AimDir, Forward) < 0.70710678f)
+	{
+		Target = Pos + Forward * Range;
+	}
+	Dir = (Target - Pos).GetSafeNormal();
+	return !Pos.ContainsNaN() && !Dir.ContainsNaN() && !Dir.IsNearlyZero();
+}
+
+bool AMagicTourCharacter::SpawnSpell()
+{
+	if (!IsCastStateValid() || !SpellClass)
+	{
+		return false;
+	}
+	FVector Pos, Dir;
+	if (!GetAim(Pos, Dir))
+	{
+		return false;
+	}
+
+	const ASpellProjectile* Defaults = SpellClass.GetDefaultObject();
+	const FCollisionShape Shape = FCollisionShape::MakeSphere(Defaults->GetRadius());
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(SpellSpawn), false, this);
+	FCollisionResponseParams Responses;
+	Responses.CollisionResponse.SetAllChannels(ECR_Ignore);
+	Responses.CollisionResponse.SetResponse(ECC_WorldStatic, ECR_Block);
+	Responses.CollisionResponse.SetResponse(ECC_WorldDynamic, ECR_Block);
+	Responses.CollisionResponse.SetResponse(ECC_Pawn, ECR_Block);
+	FHitResult Hit;
+
+	// Prevent an offset muzzle from appearing across a wall or inside another actor.
+	if (GetWorld()->SweepSingleByChannel(Hit, GetActorLocation(), Pos, FQuat::Identity,
+		ECC_WorldDynamic, Shape, Query, Responses)
+		|| GetWorld()->OverlapBlockingTestByChannel(Pos, FQuat::Identity,
+			ECC_WorldDynamic, Shape, Query, Responses))
+	{
+		return false;
+	}
+
+	const FTransform Transform(Dir.Rotation(), Pos);
+	ASpellProjectile* Spell = GetWorld()->SpawnActorDeferred<ASpellProjectile>(SpellClass,
+		Transform, this, this, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	if (!Spell)
+	{
+		return false;
+	}
+	Spell->Init(this, Dir);
+	UGameplayStatics::FinishSpawningActor(Spell, Transform);
+	return true;
+}
+
+bool AMagicTourCharacter::IsCastStateValid() const
+{
+	return Health && !Health->IsDead() && Controller && GetWorld()
+		&& GetCharacterMovement()->MovementMode == MOVE_Walking;
+}
+
+bool AMagicTourCharacter::CastSpell()
+{
+	if (!IsCastAllowed() || !SpellClass)
+	{
+		return false;
+	}
+	UAnimInstance* Anim = GetMesh()->GetAnimInstance();
+	UAnimMontage* Montage = CastMontage.LoadSynchronous();
+	if (!Anim || !Montage)
+	{
+		return false;
+	}
+	++CastId;
+	ActiveCast = Montage;
+	isCasting = true;
+	isReleased = false;
+	if (Anim->Montage_Play(Montage) <= 0.0f)
+	{
+		isCasting = false;
+		ActiveCast = nullptr;
+		return false;
+	}
+	CastInstance = Anim->GetActiveInstanceForMontage(Montage)->GetInstanceID();
+	FOnMontageEnded End;
+	End.BindUObject(this, &AMagicTourCharacter::CastEnded, CastId);
+	Anim->Montage_SetEndDelegate(End, Montage);
+
+	// Face the aim while keeping walking input and the camera independent.
+	UCharacterMovementComponent* Move = GetCharacterMovement();
+	isMoveOriented = Move->bOrientRotationToMovement;
+	isControllerOriented = Move->bUseControllerDesiredRotation;
+	Move->bOrientRotationToMovement = false;
+	Move->bUseControllerDesiredRotation = true;
+	SetActorRotation(FRotator(0.0f, Controller->GetControlRotation().Yaw, 0.0f));
+	const float Delay = FMath::IsFinite(Cooldown) ? FMath::Max(0.0f, Cooldown) : 0.4f;
+	NextCast = GetWorld()->GetTimeSeconds() + Delay;
+	return true;
+}
+
+bool AMagicTourCharacter::ReleaseSpell(UAnimSequenceBase* Animation, int32 InstanceId)
+{
+	if (!isCasting || isReleased || Animation != ActiveCast
+		|| (InstanceId != INDEX_NONE && InstanceId != CastInstance))
+	{
+		return false;
+	}
+	if (!IsCastStateValid())
+	{
+		CancelCast();
+		return false;
+	}
+	UAnimInstance* Anim = GetMesh()->GetAnimInstance();
+	if (!Anim || !Anim->Montage_IsPlaying(ActiveCast))
+	{
+		return false;
+	}
+	// Consume the notification before spawning to guard against duplicate callbacks.
+	isReleased = true;
+	return SpawnSpell();
+}
+
+void AMagicTourCharacter::CancelCast()
+{
+	if (!isCasting)
+	{
+		return;
+	}
+	UAnimMontage* Montage = ActiveCast;
+	isCasting = false;
+	isReleased = false;
+	ActiveCast = nullptr;
+	CastInstance = INDEX_NONE;
+	UCharacterMovementComponent* Move = GetCharacterMovement();
+	Move->bOrientRotationToMovement = isMoveOriented;
+	Move->bUseControllerDesiredRotation = isControllerOriented;
+	if (UAnimInstance* Anim = GetMesh()->GetAnimInstance())
+	{
+		Anim->Montage_Stop(0.1f, Montage);
+	}
+}
+
+void AMagicTourCharacter::CastEnded(UAnimMontage* Montage, bool isInterrupted, uint32 Id)
+{
+	// An old instance may finish blending after the same montage has been restarted.
+	if (Id == CastId && Montage == ActiveCast)
+	{
+		CancelCast();
+	}
+}
+
+void AMagicTourCharacter::OnMovementModeChanged(EMovementMode PrevMode, uint8 PrevCustomMode)
+{
+	Super::OnMovementModeChanged(PrevMode, PrevCustomMode);
+	if (GetCharacterMovement()->MovementMode != MOVE_Walking)
+	{
+		CancelCast();
+	}
+}
+
+void AMagicTourCharacter::EndPlay(const EEndPlayReason::Type Reason)
+{
+	CancelCast();
+	if (Health)
+	{
+		Health->OnDied.RemoveDynamic(this, &AMagicTourCharacter::CancelCast);
+	}
+	Super::EndPlay(Reason);
 }

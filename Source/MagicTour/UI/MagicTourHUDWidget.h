@@ -11,7 +11,7 @@ class AMagicTourGameMode;
 class UProgressBar;
 class UTextBlock;
 
-/** Minimal gameplay HUD with reserved health and current task display. */
+/** Minimal gameplay HUD with live health, task guidance, and a centered crosshair. */
 UCLASS()
 class MAGICTOUR_API UMagicTourHUDWidget : public UUserWidget
 {
@@ -23,7 +23,7 @@ public:
 	/** Connects the HUD to route progress and applies the initial task. */
 	void SetProgress(AMagicTourGameMode* GameMode);
 
-	/** Updates the reserved health bar when the health system becomes available. */
+	/** Updates the live health bar from the current pawn. */
 	UFUNCTION(BlueprintCallable, Category="HUD")
 	void SetHealth(float Value);
 

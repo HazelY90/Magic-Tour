@@ -18,9 +18,15 @@ Completed work:
 - Created and connected the `A_Flight_Fixed` pose; ground locomotion and flight pose switching have been verified in the editor.
 - Added three ordered invisible route checkpoints at the forest entrance, trail midpoint, and ruins entrance.
 - Added task-stage updates for exploring the forest, exploring the ruins, and defeating enemies.
-- Added a top-left gameplay HUD with a reserved health bar and live task guidance.
+- Added a top-left gameplay HUD with live health and task guidance.
+- Added a reusable health component with configurable capacity, damage validation, health-change events, and a single death notification.
+- Routed player UE damage through the health component and synchronized the HUD when the controlled pawn changes.
+- Added a centered crosshair, camera-based aiming, an adjustable cast point, and close-range spawn obstruction checks.
+- Added a straight-flight placeholder spell with swept collision, single-hit damage, and automatic lifetime expiry.
+- Added single-press casting with a short cooldown; casting requires a living character in `MOVE_Walking`.
+- Added `A_Cast` and `AM_Cast`, an upper-body raised-hand action with notification-based release, hand-attached muzzle, and cancellation on movement changes or death.
 
-The current playable scope includes third-person ground movement, free flight, repeated walking/flight transitions, an initial fixed flight pose, three ordered checkpoints, and live task guidance. Combat, enemies, real health, victory, failure, and restart systems are still planned.
+The current playable scope includes third-person ground movement, free flight, repeated walking/flight transitions, an initial fixed flight pose, three ordered checkpoints, and live task guidance. Player health and HUD synchronization are implemented. A first projectile spell is implemented with center-screen aiming, walking-only casting, a raised-hand animation with timed release, collision, damage, and lifetime handling. Casting presentation has passed manual gameplay review. Enemies, victory, failure, and restart systems are still planned.
 
 There is no packaged build or gameplay recording yet.
 
@@ -34,8 +40,9 @@ There is no packaged build or gameplay recording yet.
 | Toggle flight | `F` | Top face button |
 | Ascend | `Space` | Right shoulder |
 | Descend | `Left Ctrl` | Left shoulder |
+| Cast spell (walking only) | Left mouse button | Right trigger |
 
-Spell controls will be added with the combat system.
+Each press starts one casting action; its animation notification releases one projectile. Flying, falling, and dead characters cannot cast. The native Enhanced Input mapping for casting is created at runtime; existing movement input assets remain in use.
 
 ## Planned Gameplay
 
@@ -55,16 +62,17 @@ Gameplay rules and the current HUD layout belong in C++. Blueprint assets assign
 
 | Class or component | Status | Responsibility |
 | --- | --- | --- |
-| `MagicTourCharacter` | Implemented foundation | Ground movement, flight input coordination, and placeholder broom presentation; later coordinates casting. |
+| `MagicTourCharacter` | Implemented foundation | Ground movement, flight input, placeholder broom, camera aim, walking-only casting, animation lifecycle, and cooldown. |
 | `MagicTourPlayerController` | Implemented foundation | Adds input mapping contexts, creates the gameplay HUD, and manages the camera manager and optional touch controls. |
 | `MagicTourCameraManager` | Implemented foundation | Applies the current camera pitch limits. |
 | `MagicTourGameMode` | Implemented route progress | Enforces checkpoint order and exposes the current task stage; later manages enemy counts and win or failure states. |
 | `FlightComponent` | Implemented foundation | Walking/flight transitions, automatic takeoff, vertical movement, speed, acceleration, and braking. |
-| `HealthComponent` | Planned | Shared health, damage processing, and death events. |
-| `SpellProjectile` | Planned | Projectile movement, collision, damage, and lifetime. |
+| `HealthComponent` | Implemented | Shared health, validated damage, health-change events, and a single death notification. |
+| `SpellProjectile` | Implemented foundation | Straight projectile movement, swept collision, single-hit damage, and lifetime. |
+| `CastNotify` | Implemented | Releases the projectile once per active casting action and rejects stale montage notifications. |
 | `EnemyCharacter` / `EnemyAIController` | Planned | Enemy detection, pursuit, attack, and death behavior. |
 | `Checkpoint` | Implemented | Three invisible ordered route triggers with duplicate and out-of-order protection. |
-| `MagicTourHUDWidget` | Implemented foundation | English task guidance and a reserved health bar; later adds real health data, crosshair, controls, and results. |
+| `MagicTourHUDWidget` | Implemented foundation | English task guidance, live player health, and a centered crosshair; later adds controls and results. |
 
 Movement state and level progress are separate. Switching between walking and flight does not reset checkpoint progress.
 
@@ -78,7 +86,7 @@ MagicTour/
 │   ├── Input/                      # Enhanced Input actions and mapping contexts
 │   ├── LevelPrototyping/           # Shared blockout assets retained from the UE template
 │   ├── MagicTour/
-│   │   ├── Characters/Animations/  # Project animation Blueprint, flight pose, and source sequence
+│   │   ├── Characters/Animations/  # Animation Blueprint, flight pose, cast sequence, and montage
 │   │   └── Environment/            # Project-specific forest, ruins, materials, and blockout meshes
 │   └── ThirdPerson/
 │       ├── Blueprints/             # Character, PlayerController, and GameMode Blueprints
@@ -88,7 +96,8 @@ MagicTour/
 │   ├── MagicTourEditor.Target.cs
 │   └── MagicTour/
 │       ├── Characters/             # Player and later enemy character classes
-│       ├── Components/              # Reusable gameplay components, including flight
+│       ├── Components/              # Reusable flight and health components
+│       ├── Combat/                  # Spell projectile and cast notify
 │       ├── Framework/               # GameMode, PlayerController, and CameraManager
 │       ├── Tests/                   # Editor automation tests
 │       ├── UI/                      # Gameplay HUD
@@ -100,7 +109,7 @@ MagicTour/
 └── MagicTour.uproject
 ```
 
-Future combat and enemy systems will use the planned `Combat/` and `AI/` categories described in `docs/project-structure.md`.
+The projectile uses `Combat/`; future enemy controllers will use the planned `AI/` category described in `docs/project-structure.md`.
 
 ## Development Environment
 
