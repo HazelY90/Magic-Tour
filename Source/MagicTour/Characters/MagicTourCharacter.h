@@ -98,12 +98,12 @@ protected:
 public:
 	AMagicTourCharacter();
 
-	/** Gate for starting new casting actions. */
+	/** Gate for starting new casting actions while standing still on the ground. */
 	UFUNCTION(BlueprintPure, Category="Spell")
 	bool IsCastAllowed() const;
 
 	/** Resolve the center-screen aim point, including close-range fallback. */
-	bool GetAim(FVector& Pos, FVector& Dir) const;
+	virtual bool GetAim(FVector& Pos, FVector& Dir) const;
 
 	/** Start the action; the montage notify releases the projectile later. */
 	UFUNCTION(BlueprintCallable, Category="Spell")
@@ -125,6 +125,10 @@ protected:
 
 	UFUNCTION()
 	void CancelCast();
+
+	/** Interrupt an unreleased action when movement starts outside the input handler. */
+	UFUNCTION()
+	void MoveUpdated(float Delta, FVector OldPos, FVector OldVel);
 
 	void CastEnded(UAnimMontage* Montage, bool isInterrupted, uint32 Id);
 	bool IsCastStateValid() const;

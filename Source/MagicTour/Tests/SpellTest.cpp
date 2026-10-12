@@ -136,7 +136,7 @@ bool FSpellCastTest::RunTest(const FString& Parameters)
 	Move->MovementMode = MOVE_NavWalking;
 	TestFalse(TEXT("Only MOVE_Walking is accepted"), Player->CastSpell());
 	Move->SetMovementMode(MOVE_Walking);
-	TestTrue(TEXT("Living walker can cast"), Player->IsCastAllowed());
+	TestTrue(TEXT("Living stationary walker can cast"), Player->IsCastAllowed());
 	FVector Pos, Dir;
 	TestTrue(TEXT("Unobstructed camera aim resolves"), Player->GetAim(Pos, Dir));
 	const FVector FarTarget = Controller->View + Controller->Rot.Vector() * 10000.0f;
@@ -162,7 +162,7 @@ bool FSpellCastTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Close lateral target uses camera-forward fallback"), Dir.Equals(Controller->Rot.Vector(), 0.001f));
 	Close->Destroy();
 	Target->Destroy();
-	TestTrue(TEXT("Walking cast starts the action"), Player->CastSpell());
+	TestTrue(TEXT("Standing cast starts the action"), Player->CastSpell());
 	TestNull(TEXT("Input does not spawn before the notification"), Scene.Spell());
 	TestTrue(TEXT("Active montage notification spawns projectile"), Player->ReleaseSpell(Montage));
 	TestFalse(TEXT("Duplicate notification cannot release twice"), Player->ReleaseSpell(Montage));
@@ -346,7 +346,7 @@ bool FCastActionTest::RunTest(const FString& Parameters)
 		Mesh->ConditionallyDispatchQueuedAnimEvents();
 	};
 	Move->SetMovementMode(MOVE_Walking);
-	TestTrue(TEXT("Walking starts the montage"),Player->CastSpell());
+	TestTrue(TEXT("Standing starts the montage"),Player->CastSpell());
 	TestTrue(TEXT("Action holds a pending cast"),Player->IsCasting());
 	TestFalse(TEXT("Repeated input cannot start another action"),Player->CastSpell());
 	TestNull(TEXT("No immediate projectile"),Scene.Spell());
@@ -396,6 +396,99 @@ bool FCastActionTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Death rejects late notify"),Player->ReleaseSpell(Montage));
 	Advance(0.4f);
 	TestNull(TEXT("Dead character produces no projectile"),Scene.Spell());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStandingCastTest, "MagicTour.Spell.StandingCast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FStandingCastTest::RunTest(const FString& Parameters)
+{
+	UClass* Class = LoadClass<AMagicTourCharacter>(nullptr,
+		TEXT("/Game/ThirdPerson/Blueprints/BP_MagicTourCharacter.BP_MagicTourCharacter_C"));
+	UAnimMontage* Montage = LoadObject<UAnimMontage>(nullptr,
+		TEXT("/Game/MagicTour/Characters/Animations/AM_Cast.AM_Cast"));
+	if (!TestNotNull(TEXT("Player Blueprint loads"), Class)
+		|| !TestNotNull(TEXT("Action montage loads"), Montage)) { return false; }
+	FSpellWorld Scene;
+	Scene.Wall(FVector(0,0,-20), FVector(3000,3000,20));
+	AMagicTourCharacter* Player = Scene.Player(Class, FVector(0,0,96));
+	ASpellTestController* Controller = Scene.World->SpawnActor<ASpellTestController>();
+	if (!TestNotNull(TEXT("Player spawns"), Player)
+		|| !TestNotNull(TEXT("Controller spawns"), Controller)) { return false; }
+	Controller->Possess(Player);
+	UCharacterMovementComponent* Move = Player->GetCharacterMovement();
+	USkeletalMeshComponent* Mesh = Player->GetMesh();
+	UAnimInstance* Anim = Mesh->GetAnimInstance();
+	if (!TestNotNull(TEXT("Animation instance exists"), Anim)) { return false; }
+	FindFProperty<FFloatProperty>(AMagicTourCharacter::StaticClass(), TEXT("Cooldown"))
+		->SetPropertyValue_InContainer(Player, 0.0f);
+	auto Advance = [&](float Delta)
+	{
+		Mesh->TickAnimation(Delta, false);
+		Mesh->RefreshBoneTransforms();
+		Mesh->AllowQueuedAnimEventsNextDispatch();
+		Mesh->ConditionallyDispatchQueuedAnimEvents();
+	};
+	auto Input = [&](float Right, float Forward)
+	{
+		// Exercise the same reflected movement entry point used by controls and Blueprint UI.
+		struct { float Right; float Forward; } Args{Right, Forward};
+		Player->ProcessEvent(Player->FindFunctionChecked(TEXT("DoMove")), &Args);
+	};
+	Move->SetMovementMode(MOVE_Walking);
+	TestTrue(TEXT("Standing permits a new cast"), Player->IsCastAllowed());
+	Move->Velocity = FVector(100.0f, 0.0f, 0.0f);
+	TestFalse(TEXT("Ground motion forbids a new cast"), Player->CastSpell());
+	Move->Velocity = FVector::ZeroVector;
+	Input(0.0f, 1.0f);
+	TestFalse(TEXT("Queued input forbids casting before movement ticks"), Player->CastSpell());
+	Player->ConsumeMovementInputVector();
+	TestTrue(TEXT("Standing again permits casting"), Player->CastSpell());
+	Input(0.0f, 0.0f);
+	Controller->SetControlRotation(FRotator(0.0f, 30.0f, 0.0f));
+	TestTrue(TEXT("Zero movement input and aiming preserve the cast"), Player->IsCasting());
+	Advance(0.15f);
+	Input(1.0f, 0.0f);
+	TestFalse(TEXT("Movement input immediately interrupts before release"), Player->IsCasting());
+	TestTrue(TEXT("Interruption restores movement orientation"), Move->bOrientRotationToMovement);
+	TestFalse(TEXT("Interrupted action rejects a late release"), Player->ReleaseSpell(Montage));
+	Player->ConsumeMovementInputVector();
+	Advance(0.4f);
+	TestNull(TEXT("Interrupted action produces no projectile"), Scene.Spell());
+
+	TestTrue(TEXT("Action can restart after input cancellation"), Player->CastSpell());
+	// Drive actual CharacterMovement to cover motion originating outside DoMove.
+	Player->AddMovementInput(FVector::ForwardVector, 1.0f);
+	Move->TickComponent(0.05f, LEVELTICK_All, nullptr);
+	TestFalse(TEXT("Movement update interrupts external movement input"), Player->IsCasting());
+	Move->Velocity = FVector::ZeroVector;
+	TestFalse(TEXT("Acceleration forbids casting even at zero speed"), Player->IsCastAllowed());
+	Advance(0.4f);
+	TestNull(TEXT("External movement produces no projectile"), Scene.Spell());
+	Move->StopMovementImmediately();
+	Player->ConsumeMovementInputVector();
+	Move->SetMovementMode(MOVE_Walking);
+	TestTrue(TEXT("Stopped character can restart"), Player->CastSpell());
+	Move->Velocity = FVector(100.0f, 0.0f, 0.0f);
+	TestFalse(TEXT("Release rechecks motion before spawning"), Player->ReleaseSpell(Montage));
+	TestFalse(TEXT("Moving at release cancels the action"), Player->IsCasting());
+	Move->StopMovementImmediately();
+	Advance(0.4f);
+	TestNull(TEXT("Release-time cancellation produces no projectile"), Scene.Spell());
+
+	TestTrue(TEXT("Final stationary action starts"), Player->CastSpell());
+	Advance(0.3f);
+	ASpellProjectile* Spell = Scene.Spell();
+	if (TestNotNull(TEXT("Stationary action releases normally"), Spell))
+	{
+		Input(0.0f, 1.0f);
+		Move->TickComponent(0.05f, LEVELTICK_All, nullptr);
+		TestTrue(TEXT("Movement after release preserves the action"), Player->IsCasting());
+		TestFalse(TEXT("Movement cannot revoke the released projectile"), Spell->IsActorBeingDestroyed());
+		TestFalse(TEXT("Released action still rejects duplicate notifications"), Player->ReleaseSpell(Montage));
+		Spell->Destroy();
+	}
 	return true;
 }
 

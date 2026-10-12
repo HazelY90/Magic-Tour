@@ -15,6 +15,7 @@ public class MagicTour : ModuleRules
 			"InputCore",
 			"EnhancedInput",
 			"AIModule",
+			"NavigationSystem",
 			"UMG",
 			"Slate"
 		});

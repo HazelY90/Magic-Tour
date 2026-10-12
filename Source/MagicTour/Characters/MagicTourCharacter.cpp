@@ -75,6 +75,7 @@ void AMagicTourCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	Health->OnDied.AddDynamic(this, &AMagicTourCharacter::CancelCast);
+	OnCharacterMovementUpdated.AddDynamic(this, &AMagicTourCharacter::MoveUpdated);
 
 	if (Flight)
 	{
@@ -145,6 +146,12 @@ void AMagicTourCharacter::DoMove(float Right, float Forward)
 {
 	if (Controller)
 	{
+		// Cancel before movement or animation ticks can release the pending projectile.
+		if (isCasting && !isReleased && !FVector2D(Right, Forward).IsNearlyZero())
+		{
+			CancelCast();
+		}
+
 		// Use camera yaw so ground movement follows the player's view.
 		const FRotator YawRot(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
 		const FVector Fwd = FRotationMatrix(YawRot).GetUnitAxis(EAxis::X);
@@ -296,8 +303,11 @@ bool AMagicTourCharacter::SpawnSpell()
 
 bool AMagicTourCharacter::IsCastStateValid() const
 {
+	const UCharacterMovementComponent* Move = GetCharacterMovement();
+	// Check queued input as well as motion to reject casting in the input's first frame.
 	return Health && !Health->IsDead() && Controller && GetWorld()
-		&& GetCharacterMovement()->MovementMode == MOVE_Walking;
+		&& Move->MovementMode == MOVE_Walking && Move->Velocity.IsNearlyZero(1.0f)
+		&& Move->GetCurrentAcceleration().IsNearlyZero() && GetPendingMovementInputVector().IsNearlyZero();
 }
 
 bool AMagicTourCharacter::CastSpell()
@@ -327,7 +337,7 @@ bool AMagicTourCharacter::CastSpell()
 	End.BindUObject(this, &AMagicTourCharacter::CastEnded, CastId);
 	Anim->Montage_SetEndDelegate(End, Montage);
 
-	// Face the aim while keeping walking input and the camera independent.
+	// Face the aim while keeping the camera independent and movement available to cancel.
 	UCharacterMovementComponent* Move = GetCharacterMovement();
 	isMoveOriented = Move->bOrientRotationToMovement;
 	isControllerOriented = Move->bUseControllerDesiredRotation;
@@ -390,6 +400,16 @@ void AMagicTourCharacter::CastEnded(UAnimMontage* Montage, bool isInterrupted, u
 	}
 }
 
+void AMagicTourCharacter::MoveUpdated(float Delta, FVector OldPos, FVector OldVel)
+{
+	// Detect external movement too, including a displacement that ends with zero velocity.
+	if (isCasting && !isReleased
+		&& (!IsCastStateValid() || !GetActorLocation().Equals(OldPos, 0.01f)))
+	{
+		CancelCast();
+	}
+}
+
 void AMagicTourCharacter::OnMovementModeChanged(EMovementMode PrevMode, uint8 PrevCustomMode)
 {
 	Super::OnMovementModeChanged(PrevMode, PrevCustomMode);
@@ -402,6 +422,7 @@ void AMagicTourCharacter::OnMovementModeChanged(EMovementMode PrevMode, uint8 Pr
 void AMagicTourCharacter::EndPlay(const EEndPlayReason::Type Reason)
 {
 	CancelCast();
+	OnCharacterMovementUpdated.RemoveDynamic(this, &AMagicTourCharacter::MoveUpdated);
 	if (Health)
 	{
 		Health->OnDied.RemoveDynamic(this, &AMagicTourCharacter::CancelCast);

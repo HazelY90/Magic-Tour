@@ -38,7 +38,9 @@ ACheckpoint::ACheckpoint()
 void ACheckpoint::Overlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool isFromSweep, const FHitResult& SweepResult)
 {
-	if (isComplete || !Cast<AMagicTourCharacter>(OtherActor))
+	const AMagicTourCharacter* Player = Cast<AMagicTourCharacter>(OtherActor);
+	// AI characters share gameplay code but must never advance the player's route.
+	if (isComplete || !Player || !Player->IsPlayerControlled())
 	{
 		return;
 	}
