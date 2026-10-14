@@ -6,16 +6,20 @@
 #include "GameFramework/GameModeBase.h"
 #include "MagicTourGameMode.generated.h"
 
+class AEnemyCharacter;
+
 UENUM(BlueprintType)
 enum class EMagicTourStage : uint8
 {
 	ReachForest,
 	ExploreForest,
 	ExploreRuins,
-	DefeatEnemies
+	DefeatEnemies,
+	Complete
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnCheckpointChanged, int32, ReachedIndex, int32, TotalCheckpoints, EMagicTourStage, Stage);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnVictory);
 
 /**
  *  GameMode for the third-person gameplay prototype.
@@ -27,6 +31,20 @@ class AMagicTourGameMode : public AGameModeBase
 
 public:
 	AMagicTourGameMode();
+
+	/** Track the encounter independently of corpse lifetime and route progress. */
+	void RegisterEnemy(AEnemyCharacter* Enemy);
+	void EnemyDied(AEnemyCharacter* Enemy);
+
+	bool IsVictory() const { return isVictory; }
+	int32 GetEnemyTotal() const { return Enemies.Num(); }
+	int32 GetEnemyRemaining() const { return Enemies.Num() - DeadEnemies.Num(); }
+
+	/** Acknowledge victory once and show the completed task stage. */
+	bool Complete();
+
+	UPROPERTY(BlueprintAssignable, Category="Progress")
+	FOnVictory OnVictory;
 
 	/** Accepts only the next checkpoint in the configured route. */
 	UFUNCTION(BlueprintCallable, Category="Progress")
@@ -48,11 +66,16 @@ public:
 	UFUNCTION(BlueprintPure, Category="Progress")
 	FText GetStageText() const;
 
-	/** Broadcast after a valid checkpoint advances route progress. */
+	/** Broadcast when route progress or victory confirmation changes the task. */
 	UPROPERTY(BlueprintAssignable, Category="Progress")
 	FOnCheckpointChanged OnCheckpointChanged;
 
 protected:
+	virtual void BeginPlay() override;
+
+	TSet<TWeakObjectPtr<AEnemyCharacter>> Enemies;
+	TSet<TWeakObjectPtr<AEnemyCharacter>> DeadEnemies;
+	bool isVictory = false;
 	/** Number of ordered checkpoints required before combat. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Progress", meta=(ClampMin="1"))
 	int32 CheckpointTotal = 3;

@@ -16,6 +16,7 @@
 #include "InputActionValue.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
 #include "MagicTour.h"
 #include "Math/RotationMatrix.h"
 #include "UObject/ConstructorHelpers.h"
@@ -43,6 +44,7 @@ AMagicTourCharacter::AMagicTourCharacter()
 	Health = CreateDefaultSubobject<UHealthComponent>(TEXT("Health"));
 	SpellClass = ASpellProjectile::StaticClass();
 	CastMontage = FSoftObjectPath(TEXT("/Game/MagicTour/Characters/Animations/AM_Cast.AM_Cast"));
+	DeathPose = FSoftObjectPath(TEXT("/Game/MagicTour/Characters/Animations/A_Death_Fixed.A_Death_Fixed"));
 	CastPoint = CreateDefaultSubobject<USceneComponent>(TEXT("CastPoint"));
 	CastPoint->SetupAttachment(GetMesh(), TEXT("hand_r"));
 	CastPoint->SetRelativeLocation(FVector(0.0f, 0.0f, -10.0f));
@@ -75,6 +77,7 @@ void AMagicTourCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	Health->OnDied.AddDynamic(this, &AMagicTourCharacter::CancelCast);
+	Health->OnDied.AddDynamic(this, &AMagicTourCharacter::PlayerDied);
 	OnCharacterMovementUpdated.AddDynamic(this, &AMagicTourCharacter::MoveUpdated);
 
 	if (Flight)
@@ -144,6 +147,7 @@ void AMagicTourCharacter::DoAim(float Yaw, float Pitch)
 
 void AMagicTourCharacter::DoMove(float Right, float Forward)
 {
+	if (Health && Health->IsDead()) { return; }
 	if (Controller)
 	{
 		// Cancel before movement or animation ticks can release the pending projectile.
@@ -164,6 +168,7 @@ void AMagicTourCharacter::DoMove(float Right, float Forward)
 
 void AMagicTourCharacter::DoJumpStart()
 {
+	if (Health && Health->IsDead()) { return; }
 	if (Flight && Flight->IsFlying())
 	{
 		return;
@@ -181,6 +186,7 @@ void AMagicTourCharacter::DoJumpEnd()
 
 void AMagicTourCharacter::ToggleFlight()
 {
+	if (Health && Health->IsDead()) { return; }
 	if (Flight)
 	{
 		Flight->ToggleFlight();
@@ -189,6 +195,7 @@ void AMagicTourCharacter::ToggleFlight()
 
 void AMagicTourCharacter::AscendInput()
 {
+	if (Health && Health->IsDead()) { return; }
 	if (Flight)
 	{
 		Flight->MoveVertical(1.0f);
@@ -197,6 +204,7 @@ void AMagicTourCharacter::AscendInput()
 
 void AMagicTourCharacter::DescendInput()
 {
+	if (Health && Health->IsDead()) { return; }
 	if (Flight)
 	{
 		Flight->MoveVertical(-1.0f);
@@ -296,7 +304,7 @@ bool AMagicTourCharacter::SpawnSpell()
 	{
 		return false;
 	}
-	Spell->Init(this, Dir);
+	Spell->Init(this, Dir, SpellDamage);
 	UGameplayStatics::FinishSpawningActor(Spell, Transform);
 	return true;
 }
@@ -391,6 +399,46 @@ void AMagicTourCharacter::CancelCast()
 	}
 }
 
+void AMagicTourCharacter::PlayerDied()
+{
+	// Enemies retain their own frozen-pose and five-second removal handler.
+	APlayerController* Player = Cast<APlayerController>(Controller);
+	if (!Player) { return; }
+	CancelCast();
+	StopJumping();
+	ConsumeMovementInputVector();
+	if (Flight)
+	{
+		if (Flight->IsFlying()) { Flight->ToggleFlight(); }
+		Flight->SetComponentTickEnabled(false);
+	}
+	FlightChanged(false);
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->DisableMovement();
+	DisableInput(Player);
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	// Keep the camera's upright capsule while placing the pose on the ground below it.
+	FHitResult Hit;
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(PlayerDeath), false, this);
+	FCollisionObjectQueryParams Objects;
+	Objects.AddObjectTypesToQuery(ECC_WorldStatic);
+	Objects.AddObjectTypesToQuery(ECC_WorldDynamic);
+	const FVector Start = GetActorLocation();
+	if (GetWorld()->LineTraceSingleByObjectType(Hit, Start,
+		Start - FVector(0.0f, 0.0f, 100000.0f), Objects, Query))
+	{
+		SetActorLocation(Hit.ImpactPoint + FVector(0.0f, 0.0f,
+			GetCapsuleComponent()->GetScaledCapsuleHalfHeight()), false);
+	}
+	if (UAnimSequenceBase* Pose = DeathPose.LoadSynchronous())
+	{
+		GetMesh()->PlayAnimation(Pose, false);
+		GetMesh()->SetPosition(0.0f, false);
+		GetMesh()->SetPlayRate(0.0f);
+	}
+}
+
 void AMagicTourCharacter::CastEnded(UAnimMontage* Montage, bool isInterrupted, uint32 Id)
 {
 	// An old instance may finish blending after the same montage has been restarted.
@@ -426,6 +474,7 @@ void AMagicTourCharacter::EndPlay(const EEndPlayReason::Type Reason)
 	if (Health)
 	{
 		Health->OnDied.RemoveDynamic(this, &AMagicTourCharacter::CancelCast);
+		Health->OnDied.RemoveDynamic(this, &AMagicTourCharacter::PlayerDied);
 	}
 	Super::EndPlay(Reason);
 }

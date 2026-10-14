@@ -73,6 +73,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Spell")
 	TSubclassOf<ASpellProjectile> SpellClass;
 
+	/** Per-caster damage lets players and enemies share the same projectile asset. */
+	UPROPERTY(EditDefaultsOnly, Category="Spell", meta=(ClampMin="0.0"))
+	float SpellDamage = 50.0f;
+
 	UPROPERTY(EditDefaultsOnly, Category="Spell", meta=(ClampMin="100.0"))
 	float AimRange = 10000.0f;
 
@@ -82,6 +86,10 @@ protected:
 	/** Upper-body action asset; loaded only when casting is requested. */
 	UPROPERTY(EditDefaultsOnly, Category="Spell")
 	TSoftObjectPtr<UAnimMontage> CastMontage;
+
+	/** Fixed supine pose used only by the player after lethal damage. */
+	UPROPERTY(EditDefaultsOnly, Category="Health")
+	TSoftObjectPtr<UAnimSequenceBase> DeathPose;
 
 	/** Blueprint-adjustable attachment point for the placeholder broom. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Flight|Broom", meta=(AllowPrivateAccess="true"))
@@ -125,6 +133,10 @@ protected:
 
 	UFUNCTION()
 	void CancelCast();
+
+	/** Stop player actions and retain the body without changing enemy death behavior. */
+	UFUNCTION()
+	void PlayerDied();
 
 	/** Interrupt an unreleased action when movement starts outside the input handler. */
 	UFUNCTION()

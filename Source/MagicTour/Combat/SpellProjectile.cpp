@@ -44,8 +44,9 @@ ASpellProjectile::ASpellProjectile()
 	Move->bShouldBounce = false;
 }
 
-void ASpellProjectile::Init(AActor* Caster, const FVector& Dir)
+void ASpellProjectile::Init(AActor* Caster, const FVector& Dir, float Amount)
 {
+	Damage = FMath::IsFinite(Amount) ? FMath::Max(0.0f, Amount) : 0.0f;
 	SetOwner(Caster);
 	SetInstigator(Cast<APawn>(Caster));
 	Sphere->IgnoreActorWhenMoving(Caster, true);

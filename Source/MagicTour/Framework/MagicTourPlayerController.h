@@ -11,6 +11,7 @@ class UUserWidget;
 class UMagicTourHUDWidget;
 class UHealthComponent;
 class UInputAction;
+class AMagicTourGameMode;
 
 /**
  *  Player Controller for the third-person character.
@@ -26,6 +27,19 @@ public:
 
 	/** Constructor */
 	AMagicTourPlayerController();
+
+	/** Replace the dead player at the original spawn without resetting the level. */
+	UFUNCTION(BlueprintCallable, Category="Player")
+	bool Respawn();
+
+	UFUNCTION(BlueprintPure, Category="Player")
+	bool IsDead() const { return isDead; }
+
+	/** Close the victory prompt and mark every task complete. */
+	UFUNCTION(BlueprintCallable, Category="Player")
+	bool ConfirmVictory();
+
+	bool IsVictoryPending() const { return isVictoryPending; }
 
 protected:
 
@@ -57,11 +71,34 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UHealthComponent> Health;
 
+	UPROPERTY()
+	TObjectPtr<AMagicTourGameMode> Progress;
+
 	UFUNCTION()
 	void PawnChanged(APawn* OldPawn, APawn* NewPawn);
 
 	UFUNCTION()
 	void HealthChanged(float Current, float Max);
+
+	UFUNCTION()
+	void PlayerDied();
+
+	UFUNCTION()
+	void RespawnClicked();
+
+	UFUNCTION()
+	void VictoryReady();
+
+	UFUNCTION()
+	void VictoryClicked();
+
+	void SetDead(bool Value);
+	void UpdateUI();
+	FTransform Spawn;
+	bool isSpawnSet = false;
+	bool isDead = false;
+	bool isRespawning = false;
+	bool isVictoryPending = false;
 
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 

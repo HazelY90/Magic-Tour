@@ -25,6 +25,7 @@
 #include "NavigationPath.h"
 #include "NavigationSystem.h"
 #include "Tests/HealthTestObserver.h"
+#include "Tests/SpellTestController.h"
 #include "UObject/UnrealType.h"
 #include "World/CombatArena.h"
 #include "World/Checkpoint.h"
@@ -284,7 +285,7 @@ bool FEnemyCastTest::RunTest(const FString& Parameters)
 	UHealthComponent* Health = Scene.Player->FindComponentByClass<UHealthComponent>();
 	const float Before = Health->GetHealth();
 	Spell->FindComponentByClass<UProjectileMovementComponent>()->TickComponent(0.35f, LEVELTICK_All, nullptr);
-	TestEqual(TEXT("Enemy spell uses shared projectile damage"), Health->GetHealth(), Before - 25.0f);
+	TestEqual(TEXT("Enemy spell deals ten damage to the player"), Health->GetHealth(), Before - 10.0f);
 	TestTrue(TEXT("Enemy projectile is consumed on impact"), Spell->IsActorBeingDestroyed());
 	Scene.Advance(0.6f);
 	Scene.Stand();
@@ -295,6 +296,66 @@ bool FEnemyCastTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Lost target rejects a stale release notification"), Scene.Enemy->ReleaseSpell(Montage));
 	Scene.Advance(0.4f);
 	TestNull(TEXT("Losing the target before release produces no spell"), Scene.Spell());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPlayerDamageTest, "MagicTour.Enemy.PlayerDamage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FPlayerDamageTest::RunTest(const FString& Parameters)
+{
+	FEnemyWorld Scene;
+	if (!Scene.IsReady(*this)) { return false; }
+	ASpellTestController* Controller = Scene.World->SpawnActor<ASpellTestController>();
+	UHealthComponent* Health = Scene.Enemy->FindComponentByClass<UHealthComponent>();
+	USkeletalMeshComponent* Mesh = Scene.Player->GetMesh();
+	if (!TestNotNull(TEXT("Deterministic player aiming controller spawns"), Controller)
+		|| !TestNotNull(TEXT("Enemy owns health"), Health)
+		|| !TestNotNull(TEXT("Player animation instance exists"), Mesh->GetAnimInstance()))
+	{
+		return false;
+	}
+
+	// Aim through the enemy capsule without depending on a cached editor camera view.
+	Scene.Player->SetActorLocation(FVector(-600.0f, 0.0f, 96.0f));
+	Controller->Possess(Scene.Player);
+	Controller->View = FVector(-900.0f, 0.0f, 96.0f);
+	Controller->Rot = FRotator::ZeroRotator;
+	Scene.Player->GetCharacterMovement()->StopMovementImmediately();
+	Scene.Player->ConsumeMovementInputVector();
+	Scene.Player->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+	FindFProperty<FFloatProperty>(AMagicTourCharacter::StaticClass(), TEXT("Cooldown"))
+		->SetPropertyValue_InContainer(Scene.Player, 0.0f);
+	auto Advance = [&](float Delta)
+	{
+		Mesh->TickAnimation(Delta, false);
+		Mesh->RefreshBoneTransforms();
+		Mesh->AllowQueuedAnimEventsNextDispatch();
+		Mesh->ConditionallyDispatchQueuedAnimEvents();
+	};
+	TestEqual(TEXT("Enemy starts with one hundred health"), Health->GetHealth(), 100.0f);
+	for (int32 Index = 0; Index < 2; ++Index)
+	{
+		if (!TestTrue(TEXT("Stationary player starts the real casting action"), Scene.Player->CastSpell()))
+		{
+			return false;
+		}
+		TestNull(TEXT("Player produces no projectile before the release notification"), Scene.Spell());
+		Advance(0.3f);
+		ASpellProjectile* Spell = Scene.Spell();
+		if (!TestNotNull(TEXT("Player release notification emits a real projectile"), Spell)) { return false; }
+		TestEqual(TEXT("Player projectile retains its caster"), Spell->GetOwner(), static_cast<AActor*>(Scene.Player));
+		Spell->FindComponentByClass<UProjectileMovementComponent>()->TickComponent(0.35f, LEVELTICK_All, nullptr);
+		TestTrue(TEXT("Player projectile is consumed by the enemy impact"), Spell->IsActorBeingDestroyed());
+		TestEqual(TEXT("Each player spell deals fifty damage to the enemy"),
+			Health->GetHealth(), 100.0f - (Index + 1) * 50.0f);
+		TestEqual(TEXT("Enemy dies on the second player impact"), Health->IsDead(), Index == 1);
+		// Complete the current action before starting another cast in the same world frame.
+		Advance(0.6f);
+		TestFalse(TEXT("Player action finishes between impacts"), Scene.Player->IsCasting());
+	}
+	TestTrue(TEXT("Two player spells enter the existing enemy death state"),
+		Scene.Enemy->GetState() == EEnemyState::Dead);
 	return true;
 }
 
@@ -367,10 +428,13 @@ bool FRuinsEnemySetupTest::RunTest(const FString& Parameters)
 	if (!TestNotNull(TEXT("Ruins map has a navigation system"), Nav)
 		|| !TestNotNull(TEXT("Ruins navigation data is built"),
 			Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate))) { return false; }
+	const FFloatProperty* Damage = FindFProperty<FFloatProperty>(AMagicTourCharacter::StaticClass(), TEXT("SpellDamage"));
+	if (!TestNotNull(TEXT("Character exposes spell damage tuning"), Damage)) { return false; }
 	for (AEnemyCharacter* Enemy : Enemies)
 	{
 		TestEqual(TEXT("Placed enemy references the common ruins arena"), Enemy->Arena.Get(), Arena);
 		TestTrue(TEXT("Placed enemy starts inside the ruins"), Arena->IsInside(Enemy->GetActorLocation()));
+		TestEqual(TEXT("Placed enemy spells deal ten damage"), Damage->GetPropertyValue_InContainer(Enemy), 10.0f);
 		for (int32 Index = 0; Index < 12; ++Index)
 		{
 			FVector Pos;

@@ -10,12 +10,15 @@
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/HealthComponent.h"
+#include "Components/FlightComponent.h"
+#include "Animation/AnimSingleNodeInstance.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/GameModeBase.h"
+#include "GameFramework/PlayerController.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "GameFramework/WorldSettings.h"
 #include "Misc/AutomationTest.h"
@@ -210,7 +213,7 @@ bool FSpellImpactTest::RunTest(const FString& Parameters)
 		const FTransform Transform(FRotator::ZeroRotator, Pos);
 		ASpellProjectile* Spell = Scene.World->SpawnActorDeferred<ASpellProjectile>(ASpellProjectile::StaticClass(),
 			Transform, Caster, Caster, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-		Spell->Init(Caster, FVector::ForwardVector);
+		Spell->Init(Caster, FVector::ForwardVector, 25.0f);
 		Spell->FinishSpawning(Transform);
 		return Spell;
 	};
@@ -282,7 +285,7 @@ bool FSpellDirectionTest::RunTest(const FString& Parameters)
 		ASpellProjectile* Spell = Scene.World->SpawnActorDeferred<ASpellProjectile>(
 			ASpellProjectile::StaticClass(), Transform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 		if (!TestNotNull(TEXT("Directional projectile spawns"), Spell)) { return false; }
-		Spell->Init(nullptr, Dir);
+		Spell->Init(nullptr, Dir, 25.0f);
 		Spell->FinishSpawning(Transform);
 		UProjectileMovementComponent* Move = Spell->FindComponentByClass<UProjectileMovementComponent>();
 		const FString Label = Angle.ToString();
@@ -299,7 +302,7 @@ bool FSpellDirectionTest::RunTest(const FString& Parameters)
 	const FTransform Transform(FRotator(0, 45, 0), FVector(0, 0, 1000));
 	ASpellProjectile* Spell = Scene.World->SpawnActorDeferred<ASpellProjectile>(
 		ASpellProjectile::StaticClass(), Transform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-	Spell->Init(nullptr, Dir);
+	Spell->Init(nullptr, Dir, 25.0f);
 	Spell->FinishSpawning(Transform);
 	TestTrue(TEXT("Stored aim survives a different spawn rotation"),
 		Spell->FindComponentByClass<UProjectileMovementComponent>()->Velocity.GetSafeNormal().Equals(Dir, 0.001f));
@@ -488,6 +491,70 @@ bool FStandingCastTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("Movement cannot revoke the released projectile"), Spell->IsActorBeingDestroyed());
 		TestFalse(TEXT("Released action still rejects duplicate notifications"), Player->ReleaseSpell(Montage));
 		Spell->Destroy();
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPlayerDeathTest, "MagicTour.Health.PlayerDeath",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FPlayerDeathTest::RunTest(const FString& Parameters)
+{
+	FSpellWorld Scene;
+	Scene.Wall(FVector(0.0f, 0.0f, -20.0f), FVector(3000.0f, 3000.0f, 20.0f));
+	UClass* Class = LoadClass<AMagicTourCharacter>(nullptr,
+		TEXT("/Game/ThirdPerson/Blueprints/BP_MagicTourCharacter.BP_MagicTourCharacter_C"));
+	if (!TestNotNull(TEXT("Player Blueprint loads"), Class)) { return false; }
+	for (int32 Case = 0; Case < 2; ++Case)
+	{
+		// Cover lethal damage during a pending ground cast and during automatic takeoff.
+		AMagicTourCharacter* Player = Scene.Player(Class, FVector(Case * 600.0f, 0.0f, 96.0f));
+		APlayerController* Controller = Scene.World->SpawnActor<APlayerController>();
+		if (!TestNotNull(TEXT("Player spawns"), Player)
+			|| !TestNotNull(TEXT("Player controller spawns"), Controller)) { return false; }
+		Controller->Possess(Player);
+		UHealthComponent* Health = Player->FindComponentByClass<UHealthComponent>();
+		UFlightComponent* Flight = Player->FindComponentByClass<UFlightComponent>();
+		UCharacterMovementComponent* Move = Player->GetCharacterMovement();
+		Move->SetMovementMode(MOVE_Walking);
+		if (Case == 0) { TestTrue(TEXT("Ground cast starts before death"), Player->CastSpell()); }
+		else
+		{
+			Flight->ToggleFlight();
+			Player->SetActorLocation(FVector(600.0f, 0.0f, 900.0f));
+			TestTrue(TEXT("Takeoff is active before death"), Flight->IsTakingOff());
+		}
+		Health->ApplyDamage(1000.0f);
+		TestTrue(TEXT("Lethal damage stops player movement"), Move->MovementMode == MOVE_None);
+		TestTrue(TEXT("Lethal damage clears velocity"), Move->Velocity.IsNearlyZero());
+		TestFalse(TEXT("Death cancels casting"), Player->IsCasting());
+		TestFalse(TEXT("Dead player cannot cast"), Player->CastSpell());
+		TestFalse(TEXT("Death exits flight"), Flight->IsFlying());
+		TestFalse(TEXT("Death stops flight ticking"), Flight->IsComponentTickEnabled());
+		TestTrue(TEXT("Body is placed on the floor"), FMath::IsNearlyEqual(Player->GetActorLocation().Z, 96.0f, 0.1f));
+		TestTrue(TEXT("Body does not block movement"), Player->GetCapsuleComponent()->GetCollisionEnabled() == ECollisionEnabled::NoCollision);
+		TestEqual(TEXT("Player body is retained"), Player->GetLifeSpan(), 0.0f);
+		USkeletalMeshComponent* Mesh = Player->GetMesh();
+		UAnimSingleNodeInstance* Anim = Mesh->GetSingleNodeInstance();
+		if (TestNotNull(TEXT("Death replaces locomotion with a fixed pose"), Anim))
+		{
+			TestNotNull(TEXT("Death pose is loaded"), Anim->GetCurrentAsset());
+			Mesh->TickAnimation(0.1f, false);
+			Mesh->RefreshBoneTransforms();
+			const FVector Head = Mesh->GetBoneLocation(TEXT("head"));
+			const FVector Hips = Mesh->GetBoneLocation(TEXT("pelvis"));
+			AddInfo(FString::Printf(TEXT("Death head %s, pelvis %s, root %s"),
+				*Head.ToString(), *Hips.ToString(), *Mesh->GetBoneQuaternion(TEXT("root")).Rotator().ToString()));
+			TestTrue(TEXT("Fixed body is horizontal"), FMath::Abs(Head.Z - Hips.Z) < 40.0f);
+			TestEqual(TEXT("Fixed pose does not advance"), Anim->GetCurrentTime(), 0.0f);
+		}
+		const FVector Pos = Player->GetActorLocation();
+		Health->ApplyDamage(1000.0f);
+		Scene.World->Tick(LEVELTICK_All, 0.1f);
+		TestTrue(TEXT("Repeated lethal damage retains the same body location"), Player->GetActorLocation().Equals(Pos, 0.1f));
+		TestNull(TEXT("Interrupted cast cannot release a projectile after death"), Scene.Spell());
+		Player->Destroy();
+		Controller->Destroy();
 	}
 	return true;
 }

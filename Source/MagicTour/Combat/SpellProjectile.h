@@ -16,8 +16,8 @@ class MAGICTOUR_API ASpellProjectile : public AActor
 public:
 	ASpellProjectile();
 
-	/** Called before deferred spawning finishes so the caster is ignored immediately. */
-	void Init(AActor* Caster, const FVector& Dir);
+	/** Set per-caster damage and collision exclusions before deferred spawning finishes. */
+	void Init(AActor* Caster, const FVector& Dir, float Amount);
 	float GetRadius() const;
 
 protected:
@@ -32,8 +32,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Spell")
 	TObjectPtr<UProjectileMovementComponent> Move;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spell", meta=(ClampMin="0.0"))
-	float Damage = 25.0f;
+	/** Damage is supplied by the caster before gameplay initialization. */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Spell")
+	float Damage = 0.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spell", meta=(ClampMin="1.0"))
 	float Speed = 2500.0f;

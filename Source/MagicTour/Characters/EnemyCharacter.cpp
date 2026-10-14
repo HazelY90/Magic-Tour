@@ -8,6 +8,8 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Framework/MagicTourGameMode.h"
+#include "Engine/World.h"
 #include "World/CombatArena.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -15,6 +17,8 @@ AEnemyCharacter::AEnemyCharacter()
 {
 	AIControllerClass = AEnemyAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+	// Enemy spells use separate tuning while retaining the shared casting behavior.
+	SpellDamage = 10.0f;
 	GetCharacterMovement()->MaxWalkSpeed = 220.0f;
 	// Navigation must drive acceleration so the shared locomotion graph recognizes walking.
 	GetCharacterMovement()->GetNavMovementProperties()->bUseAccelerationForPaths = true;
@@ -34,6 +38,10 @@ void AEnemyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	Health->OnDied.AddDynamic(this, &AEnemyCharacter::Die);
+	if (AMagicTourGameMode* Mode = GetWorld()->GetAuthGameMode<AMagicTourGameMode>())
+	{
+		Mode->RegisterEnemy(this);
+	}
 }
 
 bool AEnemyCharacter::IsTargetValid() const
@@ -90,6 +98,11 @@ void AEnemyCharacter::Die()
 	// Keep a short-lived frozen placeholder until a death animation is authored.
 	GetMesh()->bPauseAnims = true;
 	SetLifeSpan(5.0f);
+	// Count the actual death immediately; the retained model is only presentation.
+	if (AMagicTourGameMode* Mode = GetWorld()->GetAuthGameMode<AMagicTourGameMode>())
+	{
+		Mode->EnemyDied(this);
+	}
 }
 
 void AEnemyCharacter::EndPlay(const EEndPlayReason::Type Reason)
